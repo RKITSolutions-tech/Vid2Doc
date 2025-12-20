@@ -7,8 +7,8 @@ A Flask-based web application that automatically generates documentation from vi
 - **Video Upload & Processing**: Upload video files (MP4, AVI, MOV, MKV) for automatic processing
 - **Dual Extraction Methods**: ⚡ NEW! Choose between traditional frame analysis or AI-powered Katna keyframe detection
   - **Default Method**: Frame-by-frame SSIM and histogram comparison with fine-tuned control
-  - **Katna Method**: Intelligent AI-based keyframe extraction with minimal configuration
-  - See [KATNA_INTEGRATION.md](KATNA_INTEGRATION.md) for details
+  - **Katna Method (WIP — currently not functional)**: Intelligent AI-based keyframe extraction. Integration is a work-in-progress and may not function as expected.
+  - See [KATNA_INTEGRATION.md](KATNA_INTEGRATION.md) for details and current status
 - **Dual-Resolution Processing**: ⚡ NEW! Process videos up to 100x faster while maintaining full output quality
   - Separate processing resolution (10-100%) for speed
   - Independent target resolution (25-100%) for quality
@@ -309,6 +309,7 @@ Edit configuration in `app.py`:
 2. The Whisper model requires significant memory
 3. Text summarization may not work well for very short or very long segments
 4. PDF generation requires images to exist on disk
+5. The Katna keyframe extraction integration is currently not working and is marked as work in progress; avoid relying on Katna until the integration is fixed.
 
 ## Future Improvements
 
