@@ -1,0 +1,41 @@
+# CUDA-capable devcontainer Dockerfile (Ubuntu base)
+# This Dockerfile provides a minimal environment and installs micromamba
+# then installs PyTorch with the appropriate pytorch-cuda metapackage.
+# NOTE: You must rebuild the devcontainer with GPU runtime enabled on the host.
+
+FROM mcr.microsoft.com/vscode/devcontainers/base:ubuntu
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install required system packages and curl
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    bzip2 \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
+    ffmpeg \
+    python3 \\\n    python3-venv \\\n    python3-pip \\
+    && rm -rf /var/lib/apt/lists/*
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1 || ln -sf /usr/bin/python3 /usr/bin/python
+
+# Install micromamba (lightweight mamba)
+ENV MAMBA_ROOT_PREFIX=/opt/micromamba
+RUN mkdir -p $MAMBA_ROOT_PREFIX && \
+    curl -L https://micromamba.snakepit.net/api/micromamba/linux-64/latest -o /tmp/micromamba && \
+    chmod +x /tmp/micromamba && \
+    /tmp/micromamba shell init --shell=bash --prefix=$MAMBA_ROOT_PREFIX || true
+
+# Copy post-create script and workspace
+WORKDIR /workspace
+COPY /scripts /workspace/scripts
+RUN chmod +x /workspace/scripts/post_create.sh || true
+
+# Default shell
+SHELL ["/bin/bash", "-lc"]
+
+# Keep container lightweight - actual Python env created by post_create via micromamba
+CMD ["sleep", "infinity"]

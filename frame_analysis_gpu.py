@@ -1,0 +1,625 @@
+"""Stub for Frame Analysis GPU extraction method.
+
+This module provides a small, well-documented stub class and helper so the
+main pipeline can call into a GPU-accelerated frame analysis extractor.
+
+Implementors can replace the NotImplementedError with real GPU code that
+returns a list of keyframes in one of these forms:
+ - list[str] of file paths to images written to output_dir
+ - list[tuple(frame_idx:int, timestamp:float, image:np.ndarray)]
+ - list[np.ndarray] of image frames
+
+The function `extract_frames_gpu` mirrors the signature of other extractors
+in the project (e.g., `extract_keyframes_katna`) so wiring is simple.
+"""
+from __future__ import annotations
+
+from typing import Callable, List, Optional, Tuple
+import logging
+import os
+from typing import Optional, Callable, List
+import numpy as _np
+
+logger = logging.getLogger(__name__)
+
+ProgressCallback = Optional[Callable[[dict], None]]
+
+
+class FrameAnalysisGPUExtractor:
+    """Stub extractor for future GPU-based frame analysis.
+
+    Replace the body of `extract_keyframes` with a GPU-accelerated
+    implementation that performs frame-level analysis and returns keyframes.
+    """
+
+    def __init__(self, temp_dir: Optional[str] = None):
+        self.temp_dir = temp_dir
+
+    def extract_keyframes(
+        self,
+        input_path: str,
+        output_dir: str,
+        scale_percent: int = 100,
+        progress_callback: ProgressCallback = None,
+        **kwargs,
+    ) -> List[str]:
+        """Perform GPU frame analysis and return keyframes.
+
+        This is a stub that must be implemented. For now it raises
+        NotImplementedError so callers receive a clear failure.
+        """
+        logger.info("FrameAnalysisGPUExtractor.extract_keyframes called (stub)")
+        raise NotImplementedError("Frame Analysis GPU extractor not yet implemented")
+
+
+def extract_frames_gpu(input_path: str, output_dir: str, scale_percent: int = 100, progress_callback: ProgressCallback = None, **kwargs):
+    """GPU-accelerated frame analysis "smart picker".
+
+    This function attempts to perform an all-GPU pipeline using available
+    libraries. If full-GPU support is unavailable it will fall back to CPU
+    implementations where practical. The function returns a list of saved
+    image file paths (JPEG) representing selected keyframes.
+
+    Optional kwargs:
+      - max_keyframes: int, maximum number of output keyframes (None for auto)
+      - sample_limit: int, max number of frames to sample for embedding (default 1024)
+      - use_ocr: bool, run OCR filter (default False)
+      - use_ssim: bool, run SSIM duplicate suppression (default True)
+      - device: str, 'cuda' or 'cpu' (auto-detected)
+    """
+    extractor = FrameAnalysisGPUExtractor()
+
+    # Merge defaults
+    max_keyframes = kwargs.get('max_keyframes', None)
+    sample_limit = int(kwargs.get('sample_limit', 1024))
+    use_ocr = bool(kwargs.get('use_ocr', False))
+    use_ssim = bool(kwargs.get('use_ssim', True))
+    device_hint = kwargs.get('device', None)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Lazy imports to avoid heavy deps at module load time. Do not raise at
+    # import time — log a helpful warning instead. The extractor itself will
+    # produce a clear error later if torch is required but absent.
+    try:
+        import torch
+    except Exception:
+        torch = None
+        logger.warning(
+            'PyTorch is not importable. frame_analysis_gpu requires torch for full processing. '
+            'Install torch (CPU or CUDA) to enable extraction.'
+        )
+
+    # Determine device in a safe way even if torch is not available.
+    if torch is None:
+        class _DummyDevice:
+            def __init__(self, t: str = 'cpu'):
+                self.type = t
+            def __str__(self):
+                return self.type
+        device = _DummyDevice('cpu')
+    else:
+        device = torch.device('cuda' if (torch.cuda.is_available() and (device_hint in (None, 'cuda'))) else 'cpu')
+    logger.info('FrameAnalysisGPU: using device %s', device)
+    # Emit detailed GPU diagnostics for debugging and telemetry
+    try:
+        cuda_available = torch.cuda.is_available()
+        logger.info('GPU diagnostics: torch.cuda.is_available=%s', cuda_available)
+        try:
+            cuda_version = torch.version.cuda
+        except Exception:
+            cuda_version = None
+        logger.info('GPU diagnostics: torch.version.cuda=%s', cuda_version)
+        try:
+            dev_count = torch.cuda.device_count()
+        except Exception:
+            dev_count = 0
+        logger.info('GPU diagnostics: device_count=%d', dev_count)
+        diag = {
+            'cuda_available': bool(cuda_available),
+            'cuda_version': cuda_version,
+            'device_count': int(dev_count),
+        }
+        if cuda_available and dev_count > 0:
+            try:
+                cur = torch.cuda.current_device()
+                name = torch.cuda.get_device_name(cur)
+                props = None
+                try:
+                    props = torch.cuda.get_device_properties(cur)
+                except Exception:
+                    props = None
+                logger.info('GPU diagnostics: current_device_index=%s name=%s', cur, name)
+                diag.update({'current_device_index': int(cur), 'device_name': str(name)})
+                if props is not None:
+                    # log a few useful properties
+                    try:
+                        total_mem_mb = int(props.total_memory/1024/1024)
+                        mp_count = getattr(props, 'multi_processor_count', None)
+                        logger.info('GPU properties: total_memory=%sMB multi_processor_count=%s', total_mem_mb, mp_count)
+                        diag.update({'total_memory_mb': total_mem_mb, 'multi_processor_count': mp_count})
+                    except Exception:
+                        pass
+                # memory stats (may be zero if nothing allocated)
+                try:
+                    alloc = torch.cuda.memory_allocated(cur)
+                    reserved = torch.cuda.memory_reserved(cur)
+                    logger.info('GPU memory: allocated=%dMB reserved=%dMB', int(alloc/1024/1024), int(reserved/1024/1024))
+                    diag.update({'memory_allocated_mb': int(alloc/1024/1024), 'memory_reserved_mb': int(reserved/1024/1024)})
+                except Exception:
+                    pass
+            except Exception as e:
+                logger.warning('Failed to read CUDA device details: %s', e)
+        # Try to run nvidia-smi for driver/GPU visibility if available
+        nvidia_smi_out = None
+        try:
+            import subprocess
+            out = subprocess.check_output(['nvidia-smi', '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'], stderr=subprocess.STDOUT, timeout=5)
+            nvidia_smi_out = out.decode('utf-8', errors='replace').strip()
+            logger.info('nvidia-smi output:\n%s', nvidia_smi_out)
+            diag['nvidia_smi'] = nvidia_smi_out
+        except FileNotFoundError:
+            logger.debug('nvidia-smi not found on PATH')
+        except Exception as e:
+            logger.debug('nvidia-smi call failed: %s', e)
+
+        # Strengthen diagnostics: try a tiny CUDA allocation and operation to prove
+        # that the device can run tensors and to capture post-allocation memory stats.
+        try:
+            if cuda_available and dev_count > 0:
+                try:
+                    # allocate a small tensor on device and do a simple op
+                    small = torch.randn((4, 4), device=torch.device('cuda', 0))
+                    small2 = small * 2.0
+                    diag['probe_tensor_device'] = str(small2.device)
+                    # after allocation, record memory stats again
+                    try:
+                        alloc_after = torch.cuda.memory_allocated(0)
+                        reserved_after = torch.cuda.memory_reserved(0)
+                        diag.update({'probe_memory_allocated_mb': int(alloc_after/1024/1024), 'probe_memory_reserved_mb': int(reserved_after/1024/1024)})
+                    except Exception:
+                        pass
+                except Exception as e:
+                    # record that a probe failed and include the exception text
+                    diag['probe_error'] = str(e)
+        except Exception:
+            # do not let diagnostics break the main flow
+            logger.debug('Failed during strengthened GPU probing')
+
+        # Send diagnostics to the UI via the provided progress_callback (best-effort)
+        try:
+            if progress_callback:
+                ev = {'type': 'gpu', 'diagnostics': diag}
+                try:
+                    progress_callback(ev)
+                except Exception:
+                    # Guard against any exceptions in the callback
+                    logger.debug('progress_callback failed for gpu diagnostics')
+        except Exception:
+            # Protect the main flow from any diagnostics emission errors
+            logger.debug('Failed to emit GPU diagnostics to progress_callback')
+    except Exception:
+        logger.debug('Failed to collect GPU diagnostics')
+
+    # Video decoding: prefer PyNvCodec (VPF) -> decord (GPU) -> cv2 CPU
+    frames = []  # will hold numpy arrays (H,W,C) on CPU or torch tensors on GPU
+    frame_count = 0
+    use_pynv = False
+    use_decord = False
+    vr = None
+
+    # 1) PyNvCodec (VPF) preferred for all-GPU path
+    try:
+        from PyNvCodec import VideoReader as VPFVideoReader, SurfaceDownloader
+        use_pynv = True
+        logger.info('Using PyNvCodec (VPF) for GPU decoding')
+        # we will initialize lazily below (requires input_path)
+    except Exception:
+        use_pynv = False
+
+    # 2) decord as next preference
+    if not use_pynv:
+        try:
+            import decord
+            from decord import VideoReader, cpu, gpu
+            use_decord = True
+            vr = VideoReader(input_path, ctx=gpu(0) if device.type == 'cuda' else cpu(0))
+            frame_count = len(vr)
+            logger.info('Decoded video with decord, frames=%d', frame_count)
+        except Exception:
+            use_decord = False
+
+    # Simple helper to report progress safely
+    def _report(stage, pct=None, **extra):
+        if not progress_callback:
+            return
+        ev = {'type': 'status', 'stage': stage}
+        if pct is not None:
+            ev['progress'] = float(pct)
+        ev.update(extra)
+        try:
+            progress_callback(ev)
+        except Exception:
+            pass
+
+    if use_pynv:
+        # Attempt to use PyNvCodec for GPU decode. This code expects PyNvCodec
+        # from NVIDIA VPF. PyNvCodec API varies by packaging; do a best-effort
+        # initialization and read frames as GPU surfaces then download to numpy.
+        try:
+            from PyNvCodec import VideoReader as VPFVideoReader, SurfaceDownloader
+            # VPFVideoReader handles device selection internally; create reader
+            vpf = VPFVideoReader(input_path, gpu_id=0 if device.type=='cuda' else -1)
+            frame_count = vpf.NumFrames() if hasattr(vpf, 'NumFrames') else 0
+            import numpy as _np
+            imgs_gpu = []
+            # Sample indices
+            sample_n = min(sample_limit, max(1, frame_count))
+            idxs = _np.linspace(0, max(frame_count-1,0), sample_n, dtype=int)
+            downloader = SurfaceDownloader(width=0, height=0, gpu_id=0 if device.type=='cuda' else -1)
+            for i, idx in enumerate(idxs.tolist()):
+                sf = vpf.DecodeSingleSurface(idx)
+                if sf is None:
+                    continue
+                # download to numpy BGR by default
+                np_img = downloader.DownloadSingleSurfaceToNumpy(sf)
+                t = torch.from_numpy(np_img).permute(2,0,1).float()
+                imgs_gpu.append(t)
+                if progress_callback and sample_n:
+                    _report('decoding', pct=(i/sample_n)*100)
+            if not imgs_gpu:
+                raise RuntimeError('PyNvCodec failed to produce frames')
+            frames_tensor = torch.stack(imgs_gpu, dim=0)
+        except Exception as e:
+            logger.warning('PyNvCodec path failed, falling back: %s', e)
+            # fallback to decord/cv2 path below
+            use_pynv = False
+
+    if use_decord and not use_pynv:
+        # Sample frame indices uniformly up to sample_limit
+        import math
+        import numpy as _np
+        sample_n = min(sample_limit, frame_count)
+        if sample_n <= 0:
+            raise RuntimeError('Video contains no frames')
+        idxs = _np.linspace(0, frame_count - 1, sample_n, dtype=int)
+
+        # Read frames in mini-batches to avoid memory spikes
+        batch_size = int(kwargs.get('decode_batch_size', 64))
+        torch_available = True
+        try:
+            import torch
+        except Exception:
+            torch_available = False
+
+        imgs_gpu = []
+        for i in range(0, len(idxs), batch_size):
+            batch_idx = idxs[i:i+batch_size].tolist()
+            try:
+                # decord returns NDArray; if using GPU ctx it will be on GPU
+                arrs = vr.get_batch(batch_idx)
+                # convert to numpy then torch on device
+                for a in arrs:
+                    try:
+                        np_img = a.asnumpy() if hasattr(a, 'asnumpy') else _np.array(a)
+                    except Exception:
+                        np_img = _np.array(a)
+                    # Convert to torch tensor and move to device
+                    t = torch.from_numpy(np_img).permute(2,0,1).float()
+                    imgs_gpu.append(t)
+            except Exception as e:
+                logger.warning('Decord batch read failed: %s', e)
+                # fallback to reading individual frames
+                for idx in batch_idx:
+                    try:
+                        a = vr[idx]
+                        np_img = a.asnumpy() if hasattr(a, 'asnumpy') else _np.array(a)
+                        t = torch.from_numpy(np_img).permute(2,0,1).float()
+                        imgs_gpu.append(t)
+                    except Exception:
+                        pass
+            _report('decoding', pct=(i/len(idxs))*100)
+
+        if not imgs_gpu:
+            raise RuntimeError('Failed to decode frames with decord')
+
+        # Stack into tensor [N,3,H,W]
+        frames_tensor = torch.stack(imgs_gpu, dim=0)
+    else:
+        # Fallback: cpu decoding with cv2
+        import cv2
+        cap = cv2.VideoCapture(input_path)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        if frame_count <= 0:
+            cap.release()
+            raise RuntimeError('Could not determine frame count or open video')
+        import numpy as _np
+        sample_n = min(sample_limit, frame_count)
+        idxs = _np.linspace(0, frame_count - 1, sample_n, dtype=int)
+        imgs = []
+        idxs_set = set(idxs.tolist())
+        i = 0
+        ret = True
+        while ret and idxs_set:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            if i in idxs_set:
+                imgs.append(frame)
+                idxs_set.remove(i)
+            i += 1
+        cap.release()
+        if not imgs:
+            raise RuntimeError('Failed to decode frames with cv2')
+        # move to torch on device
+        import torch
+        frames_tensor = torch.stack([torch.from_numpy(_np.array(im)).permute(2,0,1).float() for im in imgs], dim=0)
+
+    _report('decoded', pct=5, frames=frames_tensor.shape[0])
+
+    # Preprocess: resize to 224x224, normalize to [0,1] and standardize
+    try:
+        import kornia.augmentation as Kaug
+        import kornia.geometry.transform as Kgeom
+        import kornia as K
+        def _preprocess(tensor):
+            # tensor: [3,H,W] or batch [N,3,H,W]
+            if tensor.dim() == 3:
+                tensor = tensor.unsqueeze(0)
+            # convert [0,255] -> [0,1]
+            tensor = tensor / 255.0
+            tensor = torch.nn.functional.interpolate(tensor, size=(224,224), mode='bilinear', align_corners=False)
+            # normalize ImageNet mean/std
+            mean = torch.tensor([0.485, 0.456, 0.406], device=device).view(1,3,1,1)
+            std = torch.tensor([0.229, 0.224, 0.225], device=device).view(1,3,1,1)
+            tensor = (tensor - mean) / std
+            return tensor
+    except Exception:
+        # fallback using torch.nn.functional.interpolate
+        def _preprocess(tensor):
+            if tensor.dim() == 3:
+                tensor = tensor.unsqueeze(0)
+            tensor = tensor / 255.0
+            tensor = torch.nn.functional.interpolate(tensor, size=(224,224), mode='bilinear', align_corners=False)
+            mean = torch.tensor([0.485, 0.456, 0.406], device=device).view(1,3,1,1)
+            std = torch.tensor([0.229, 0.224, 0.225], device=device).view(1,3,1,1)
+            tensor = (tensor - mean) / std
+            return tensor
+
+    
+    # Preprocess in batches: move only small batches to the device to
+    # avoid allocating the entire frames tensor on GPU at once.
+    def _preprocess_in_batches(frames_tensor_cpu, batch_size=int(kwargs.get('preprocess_batch_size', 64))):
+        N = int(frames_tensor_cpu.shape[0])
+        if N == 0:
+            return torch.empty((0,3,224,224), device=device)
+        pre_list = []
+        for i in range(0, N, batch_size):
+            b = frames_tensor_cpu[i:i+batch_size].to(device)
+            p = _preprocess(b)
+            pre_list.append(p)
+            try:
+                _report('preprocessing_batch', pct=10 + (i / max(1, N)) * 10)
+            except Exception:
+                pass
+        imgs_pre = torch.cat(pre_list, dim=0)
+        return imgs_pre
+
+    imgs_pre = _preprocess_in_batches(frames_tensor, batch_size=int(kwargs.get('preprocess_batch_size', 64)))
+    _report('preprocessed', pct=10)
+    
+
+    # Embedding: try open_clip -> clip -> resnet50 fallback
+    # Allow disabling heavy embedding models in CI/dev to avoid native crashes
+    disable_emb = bool(str(kwargs.get('DISABLE_EMBEDDING_MODELS') or os.environ.get('DISABLE_EMBEDDING_MODELS') or '').strip())
+
+    if disable_emb:
+        logger.warning('DISABLE_EMBEDDING_MODELS set: skipping heavy embedding models and using lightweight deterministic embeddings')
+        def _embed(batch):
+            # deterministic lightweight embedding: mean + std pooling to a small vector
+            with torch.no_grad():
+                b = batch.to('cpu') if batch.device.type != 'cpu' else batch
+                n = b.size(0)
+                # compute channel-wise mean and std, produce a small vector
+                mean = b.mean(dim=[2,3])  # [N,3]
+                std = b.std(dim=[2,3])    # [N,3]
+                out = torch.cat([mean, std], dim=1)  # [N,6]
+                # pad/linearize to 512 dims deterministically
+                out = out.repeat(1, 86)[:,:512]
+                return out.to(device)
+    else:
+        try:
+            import open_clip
+            model_name = kwargs.get('open_clip_model', 'ViT-B-32')
+            model, _, preprocess = open_clip.create_model_and_transforms(model_name, pretrained='openai')
+            model.to(device)
+            model.eval()
+            def _embed(batch):
+                with torch.no_grad():
+                    emb = model.encode_image(batch)
+                return emb
+            logger.info('Using open_clip for embeddings')
+        except Exception:
+            try:
+                import clip
+                model, preprocess = clip.load('ViT-B/32', device=device)
+                model.eval()
+                def _embed(batch):
+                    with torch.no_grad():
+                        emb = model.encode_image(batch)
+                    return emb
+                logger.info('Using CLIP for embeddings')
+            except Exception:
+                # fallback: torchvision resnet50 with average pool features
+                try:
+                    import torchvision.models as models
+                    resnet = models.resnet50(pretrained=True).to(device)
+                    resnet.eval()
+                    # remove final fc
+                    feat = torch.nn.Sequential(*list(resnet.children())[:-1])
+                    def _embed(batch):
+                        with torch.no_grad():
+                            out = feat(batch)
+                            out = out.view(out.size(0), -1)
+                        return out
+                    logger.info('Using ResNet50 fallback for embeddings')
+                except Exception:
+                    raise RuntimeError('No embedding model available (open_clip, clip or torchvision).')
+
+    # Compute embeddings in batches to save memory
+    batch_size = int(kwargs.get('embed_batch_size', 64))
+    embeddings = []
+    N = imgs_pre.shape[0]
+    for i in range(0, N, batch_size):
+        b = imgs_pre[i:i+batch_size]
+        emb = _embed(b)
+        # Normalize
+        emb = torch.nn.functional.normalize(emb, p=2, dim=1)
+        embeddings.append(emb)
+        _report('embedding', pct=10 + (i/N)*60)
+    embeddings = torch.cat(embeddings, dim=0)
+
+    # Convert embeddings to CPU numpy for clustering if necessary
+    try:
+        import faiss
+        use_faiss = True
+    except Exception:
+        use_faiss = False
+
+    emb_np = embeddings.cpu().numpy()
+
+    # Choose number of clusters K
+    if max_keyframes and int(max_keyframes) > 0:
+        k = int(max_keyframes)
+    else:
+        # heuristic: 1-3% of frames, clipped to [1,50]
+        k = max(1, min(50, max(1, int(max(1, int(0.02 * emb_np.shape[0]))))))
+
+    _report('clustering', pct=75, clusters=k)
+
+    labels = None
+    centroids = None
+    if use_faiss:
+        try:
+            # use faiss Kmeans on CPU (works well); could be moved to GPU if faiss-gpu available
+            km = faiss.Kmeans(emb_np.shape[1], k, niter=20, verbose=False)
+            km.train(emb_np)
+            centroids = km.centroids
+            # assign labels via nearest centroid
+            index = faiss.IndexFlatL2(emb_np.shape[1])
+            index.add(centroids)
+            D, I = index.search(emb_np, 1)
+            labels = I.reshape(-1)
+        except Exception as e:
+            logger.warning('faiss Kmeans failed, falling back to sklearn: %s', e)
+            use_faiss = False
+
+    if not use_faiss:
+        try:
+            from sklearn.cluster import KMeans
+            km = KMeans(n_clusters=k, random_state=42, n_init=10).fit(emb_np)
+            labels = km.labels_
+            centroids = km.cluster_centers_
+        except Exception as e:
+            # final fallback: simple greedy selection by farthest-first (diverse sampling)
+            logger.warning('Sklearn KMeans not available, using greedy sampling: %s', e)
+            labels = None
+
+    # Determine medoids (closest frame to centroid for each cluster)
+    selected_indices = []
+    if labels is not None and centroids is not None:
+        for ci in range(centroids.shape[0]):
+            members = (labels == ci)
+            if not members.any():
+                continue
+            memb_idx = _np.where(members)[0]
+            memb_emb = emb_np[memb_idx]
+            centroid = centroids[ci]
+            # cosine similarity since embeddings normalized
+            sims = memb_emb.dot(centroid) if centroid.ndim == 1 else memb_emb.dot(centroid)
+            # pick argmax similarity
+            best = memb_idx[int(sims.argmax())]
+            selected_indices.append(int(best))
+    else:
+        # Greedy: pick k frames evenly spaced
+        total = emb_np.shape[0]
+        selected_indices = list(_np.linspace(0, total-1, min(k, total), dtype=int))
+
+    # Optionally run OCR to filter duplicates (compute text hash)
+    if use_ocr:
+        try:
+            from paddleocr import PaddleOCR
+            ocr = PaddleOCR(use_gpu=(device.type=='cuda'))
+            import hashlib
+            text_hashes = []
+            new_selected = []
+            for idx in selected_indices:
+                img_t = frames_tensor[idx].permute(1,2,0).contiguous().cpu().numpy().astype('uint8')
+                res = ocr.ocr(img_t, cls=True)
+                text = '\n'.join([' '.join([w[1][0] for w in line]) for line in res]) if res else ''
+                h = hashlib.md5(text.encode('utf-8')).hexdigest()
+                if not text_hashes or text_hashes[-1] != h:
+                    new_selected.append(idx)
+                    text_hashes.append(h)
+            selected_indices = new_selected
+        except Exception as e:
+            logger.warning('PaddleOCR not available or failed: %s', e)
+
+    # Optionally apply SSIM duplicate suppression (drop near duplicates)
+    if use_ssim:
+        try:
+            import kornia
+            kept = []
+            for idx in selected_indices:
+                if not kept:
+                    kept.append(idx)
+                    continue
+                # compute ssim between this and last kept
+                a = frames_tensor[kept[-1]].unsqueeze(0)/255.0
+                b = frames_tensor[idx].unsqueeze(0)/255.0
+                a = torch.nn.functional.interpolate(a, size=(224,224), mode='bilinear')
+                b = torch.nn.functional.interpolate(b, size=(224,224), mode='bilinear')
+                s = kornia.metrics.ssim(a, b, window_size=11)
+                if float(s) < 0.98:
+                    kept.append(idx)
+            selected_indices = kept
+        except Exception as e:
+            logger.warning('Kornia SSIM not available or failed: %s', e)
+
+    # Bound selected count by max_keyframes if provided
+    if max_keyframes and len(selected_indices) > int(max_keyframes):
+        selected_indices = selected_indices[:int(max_keyframes)]
+
+    # Save selected frames to output_dir as JPEGs and return file list
+    out_files = []
+    import cv2
+    basename = os.path.splitext(os.path.basename(input_path))[0]
+    for si in selected_indices:
+        # Convert tensor to CPU BGR for cv2.imwrite
+        img_t = frames_tensor[si].permute(1,2,0).contiguous().cpu().numpy().astype('uint8')
+        fname = f"{basename}_frame_{si}.jpg"
+        fp = os.path.join(output_dir, fname)
+        # cv2 expects BGR; our frames are likely in RGB (decord/cv2). Try to detect
+        try:
+            # If values look like RGB, convert to BGR
+            bgr = cv2.cvtColor(img_t, cv2.COLOR_RGB2BGR)
+        except Exception:
+            bgr = img_t
+        cv2.imwrite(fp, bgr)
+        out_files.append(fp)
+
+    _report('complete', pct=100, selected=len(out_files))
+    return out_files
+
+
+def whisperx_align_stub(input_path: str, device: str = 'cuda'):
+    """
+    Optional WhisperX alignment stub. Returns empty list if WhisperX not available.
+    Kept minimal so this module doesn't require WhisperX at import time.
+    """
+    try:
+        import whisperx
+        # full integration left for later; return empty for now
+        return []
+    except Exception:
+        return []

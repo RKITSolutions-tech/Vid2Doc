@@ -1,0 +1,73 @@
+name: Smoke Test Workflow
+
+on:
+  workflow_dispatch:  # Allows manual triggering from GitHub UI
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        lfs: true
+    
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+      timeout-minutes: 10
+    
+    - name: Run Complete End-to-End Smoke Test
+      id: smoke-test
+      run: |
+        python test/test_smoke_workflow.py
+    
+    - name: Upload Test Artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: smoke-test-artifacts
+        path: |
+          test_workflow_output/
+          test_workflow.db
+        if-no-files-found: ignore
+        retention-days: 7
+    
+    - name: Test Summary
+      if: always()
+      run: |
+        echo "## Smoke Test Workflow Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ steps.smoke-test.outcome }}" == "success" ]; then
+          echo "### ✅ All Test Steps Completed Successfully:" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Video processing (small_demo_video.mp4)" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Section creation" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Slide text editing" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Document text editing" >> $GITHUB_STEP_SUMMARY
+          echo "✅ PDF export" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Complete end-to-end workflow validated successfully! 🎉" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "### ❌ Smoke Test Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The smoke test encountered errors. Please check the test output above for details." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Common issues:" >> $GITHUB_STEP_SUMMARY
+          echo "- Video file (small_demo_video.mp4) not found or not checked out properly" >> $GITHUB_STEP_SUMMARY
+          echo "- Dependencies not installed correctly" >> $GITHUB_STEP_SUMMARY
+          echo "- Video processing pipeline errors" >> $GITHUB_STEP_SUMMARY
+        fi
