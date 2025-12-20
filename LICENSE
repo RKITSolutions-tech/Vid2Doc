@@ -1,21 +1,88 @@
-MIT License
+Vid2Doc Non-Commercial Reciprocal License (VNCRL)
 
 Copyright (c) 2025 Ryan Kenning
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Preamble
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This license grants permission to use, copy, and modify the software provided
+that the following conditions are met. The goal of this license is to keep
+the Project and any extensions open and freely available for non-commercial
+use, and to ensure that improvements and extensions are shared under the same
+terms.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Terms and Conditions
+
+1. Non-Commercial Use Only
+	- The Software and any Derivative Works (defined below) may not be sold,
+	  licensed for a fee, sublicensed for commercial use, or used in a
+	  commercial product or service without the express written permission of
+	  the Copyright Holder. Any distribution that directly or indirectly
+	  results in commercial gain is prohibited.
+
+2. Derivative Works and Extensions (Reciprocity / Share-Alike)
+	- "Derivative Works" means any modification, adaptation, translation,
+	  extension, plugin, integration, or other work that is based on or
+	  derived from the Software.
+	- If you distribute, publish, or otherwise make available a Derivative Work
+	  of the Software (including extensions, plugins, or improvements), you
+	  must do all of the following:
+	  a) License the Derivative Work under the exact same license terms as
+		  this VNCRL; and
+	  b) Make the complete corresponding source code of the Derivative Work
+		  available to the recipients under the same VNCRL terms (for example,
+		  by providing a public repository URL or including the source with the
+		  distribution); and
+	  c) Retain, in the source distribution, all original copyright notices
+		  and a copy of this license.
+
+3. Attribution
+	- Redistributions of the Software or Derivative Works in source or binary
+	  form must retain a visible attribution to the Copyright Holder and a
+	  copy of this license.
+
+4. No Additional Restrictions
+	- You may not impose further legal or technical restrictions on the
+	  recipients' exercise of the rights granted by this license. In
+	  particular, you may not relicense Derivative Works under terms that are
+	  less permissive with respect to source availability and non-commercial
+	  use.
+
+5. Termination
+	- Any attempt to sublicense, sell, or otherwise commercially exploit the
+	  Software in violation of Section 1, or any failure to comply with the
+	  obligations in Section 2, terminates the rights granted to the
+	  non-complying party under this license.
+
+6. Patent Rights
+	- Contributors grant no patent license by this document. If you believe a
+	  contributor has granted a patent license, consult the contributor in
+	  writing for clarification.
+
+7. Disclaimer of Warranty
+	- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+	  OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+	  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+8. Limitation of Liability
+	- IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
+	  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+	  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+	  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+9. Enforcement and Legal Advice
+	- This is a custom license drafted to reflect the Project owner's intent to
+	  require non-commercial use and to require that derivatives be published
+	  under the same terms. License language can have legal implications; the
+	  Copyright Holder strongly recommends consulting a qualified attorney to
+	  review and, if necessary, refine this text for enforceability in your
+	  jurisdiction.
+
+Definitions
+
+"Software" means the original source code and accompanying documentation
+distributed by the Copyright Holder.
+
+"Derivative Work" has the meaning set out in Section 2 above.
+
+If you are unsure whether your use is permitted under this license, or if you
+wish to obtain a commercial license, contact the Copyright Holder.
