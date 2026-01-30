@@ -37,15 +37,30 @@ git clone https://github.com/Ryan-Kenning/VideoDcumentation.git
 cd VideoDcumentation
 ```
 
-2. Install dependencies:
+2. Bootstrap the project (create virtualenv, install Python deps, check system tools):
 ```bash
-pip install -r requirements.txt
+./scripts/bootstrap.sh
+# If you prefer to install system packages automatically on Debian/Ubuntu use:
+# sudo apt update && sudo apt install ffmpeg
 ```
 
-3. Initialize the database:
+3. (Optional) Run an environment check to verify packages and tools:
+```bash
+.venv/bin/python scripts/check_env.py
+```
+
+4. Initialize the database:
 ```bash
 python database.py
 ```
+
+Health check
+
+After bootstrapping you can verify key runtime dependencies via the web app or CLI:
+
+- HTTP: GET /api/health will return JSON describing ffprobe and required Python packages
+- CLI: `.venv/bin/python scripts/check_env.py` prints a summary and exits non-zero on missing requirements
+
 
 ## Usage
 

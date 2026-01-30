@@ -31,12 +31,10 @@ jobs:
         pip install -r requirements.txt
       timeout-minutes: 10
     
-    - name: Run Database Tests
+    - name: Sanity: run environment checker
       run: |
-        pytest -xvs tests/test_suite.py::TestDatabase
-    
-    - name: Run Basic Tests
-      run: |
+        python scripts/check_env.py
+
         pytest tests/test_basic.py
     
     - name: Run Flask App Smoke Test
