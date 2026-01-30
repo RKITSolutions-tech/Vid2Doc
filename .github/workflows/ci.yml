@@ -33,19 +33,19 @@ jobs:
     
     - name: Run Database Tests
       run: |
-        pytest -xvs test/test_suite.py::TestDatabase
+        pytest -xvs tests/test_suite.py::TestDatabase
     
     - name: Run Basic Tests
       run: |
-        python test/test_basic.py
+        pytest tests/test_basic.py
     
     - name: Run Flask App Smoke Test
       run: |
-        python test/test_smoke_flask.py
+        pytest tests/test_smoke_flask.py
     
     - name: Run Video Processing Smoke Test
       run: |
-        python test/test_smoke_demo.py
+        pytest tests/test_smoke_demo.py
     
     - name: Test Summary
       if: always()

@@ -2,9 +2,15 @@
 # Licensed under the MIT License - see LICENSE file for details
 
 import warnings
-from moviepy.editor import VideoFileClip
+# moviepy v1 exposed VideoFileClip under `moviepy.editor`, while newer versions
+# expose it under `moviepy.video.io.VideoFileClip`. Support both to be robust
+# across environments.
+try:
+    from moviepy.editor import VideoFileClip
+except Exception:
+    from moviepy.video.io.VideoFileClip import VideoFileClip
+
 import os
-import whisper
 from pydub import AudioSegment
 import logging
 import ffmpeg
@@ -20,6 +26,9 @@ _WHISPER_MODELS = {}
 
 def _load_whisper_model(model_size: str):
     """Lazy-load and cache Whisper models to avoid repeated downloads."""
+    # Import whisper lazily to avoid requiring it at module import time for tests
+    import whisper
+
     model_size = model_size or "base"
     if model_size not in _WHISPER_MODELS:
         logging.info(f"Loading Whisper model '{model_size}'")

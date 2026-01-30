@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+
+{% block title %}Review Video {{ video_id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .review-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .review-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: white;
+        padding: clamp(12px, 3vw, 16px) clamp(15px, 4vw, 20px);
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+        gap: clamp(15px, 4vw, 24px);
+        flex-wrap: wrap;
+    }
+
+    .review-header h2 {
+        margin: 0;
+        font-size: clamp(18px, 4vw, 22px);
+        color: #1f3c88;
+    }
+
+    /* Mobile: Stack header elements */
+    @media (max-width: 768px) {
+        .review-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 15px;
+        }
+
+        .header-info {
+            width: 100%;
+        }
+
+        .video-selector select {
+            min-width: 100%;
+        }
+    }
+
+    .header-info {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .video-selector {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .video-selector label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .video-selector select {
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid #cbd5e0;
+        background: #f8fafc;
+        font-size: 13px;
+        min-width: 280px;
+        color: #1f2937;
+    }
+
+    .no-videos-hint {
+        font-size: 13px;
+        color: #64748b;
+    }
+
+    .review-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .review-card {
+        display: grid;
+        grid-template-columns: minmax(280px, 320px) 1fr;
+        gap: clamp(15px, 4vw, 20px);
+        background: white;
+        padding: clamp(14px, 3.5vw, 18px);
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    /* Mobile: Stack review card vertically */
+    @media (max-width: 768px) {
+        .review-card {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+    }
+
+    .review-left {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .preview-thumb {
+        width: 100%;
+        border-radius: 10px;
+        background: #0f172a;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 180px;
+    }
+
+    .preview-thumb img {
+        width: 100%;
+        height: auto;
+        display: block;
+        object-fit: contain;
+    }
+
+    .preview-thumb .fallback {
+        color: #94a3b8;
+        font-size: 13px;
+        padding: 30px 12px;
+        text-align: center;
+    }
+
+    .slide-meta {
+        font-size: 13px;
+        color: #475569;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .processed-text {
+        background: #f8fafc;
+        border-radius: 8px;
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        font-size: 13px;
+        line-height: 1.6;
+        color: #1f2937;
+        white-space: pre-wrap;
+    }
+
+    .processed-text h4 {
+        margin: 0 0 8px 0;
+        font-size: 13px;
+        color: #1f3c88;
+    }
+
+    .review-right {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .review-right label {
+        font-weight: 600;
+        font-size: 13px;
+        color: #1f2937;
+    }
+
+    .edit-area {
+        width: 100%;
+        min-height: 200px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e0;
+        padding: 12px;
+        font-size: 13px;
+        line-height: 1.55;
+        font-family: "Inter", "Segoe UI", sans-serif;
+        resize: vertical;
+    }
+
+    .edit-area[readonly] {
+        background: #f1f5f9;
+        color: #64748b;
+        cursor: not-allowed;
+    }
+
+    .review-right .controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .status-pill {
+        font-size: 12px;
+        color: #1e293b;
+    }
+
+    .status-pill.success {
+        color: #047857;
+    }
+
+    .status-pill.error {
+        color: #b91c1c;
+    }
+
+    .empty-state {
+        background: white;
+        border-radius: 10px;
+        padding: 40px;
+        text-align: center;
+        color: #475569;
+        font-size: 15px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    @media (max-width: 980px) {
+        .review-card {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="review-wrapper">
+    <div class="review-header">
+        <div class="header-info">
+            <h2>{% if video_id %}Review Video {{ video_id }}{% else %}Review Slides{% endif %}</h2>
+            {% if processed_videos %}
+            <div class="video-selector">
+                <label for="video-selector">Processed videos</label>
+                <select id="video-selector" onchange="handleVideoSelection(this.value)">
+                    {% for video in processed_videos %}
+                        <option value="{{ video['id'] }}" {% if video['id'] == video_id %}selected{% endif %}>
+                            Video {{ video['id'] }} – {{ video['filename'] }} {% if video['slide_count'] %}({{ video['slide_count'] }} slides){% else %}(no slides yet){% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% else %}
+            <p class="no-videos-hint">No processed videos found yet. Process a video to populate this list.</p>
+            {% endif %}
+        </div>
+        <div class="review-actions">
+            {% if video_id %}
+                <a href="{{ url_for('edit_video', video_id=video_id) }}" class="btn">Back to Editor</a>
+                <a href="{{ url_for('export_pdf', video_id=video_id) }}" class="btn">Export PDF</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not processed_videos %}
+        <div class="empty-state">
+            No processed videos are available yet. Upload and process a video to start reviewing slides.
+        </div>
+    {% elif not slides %}
+        <div class="empty-state">
+            No slides are available yet for this video. Once processing completes, captured frames will appear here.
+        </div>
+    {% else %}
+        {% for slide in slides %}
+        {% set processed_text = slide['suggested_text'] or slide['original_text'] or 'No text captured.' %}
+        {% set editable_text = slide['final_text'] or processed_text %}
+        <section class="review-card" id="slide-{{ slide['id'] }}">
+            <div class="review-left">
+                <div class="preview-thumb">
+                    {% if slide['image_path'] %}
+                        <img src="{{ url_for('static', filename='../' + slide['image_path']) }}" alt="Slide frame {{ slide['frame_number'] }}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\'fallback\'>Preview unavailable</div>';">
+                    {% else %}
+                        <div class="fallback">Preview unavailable</div>
+                    {% endif %}
+                </div>
+                <div class="slide-meta">
+                    <span><strong>Frame:</strong> {{ slide['frame_number'] }}</span>
+                    <span><strong>Timestamp:</strong> {{ "%.2f"|format(slide['timestamp'] or 0) }}s</span>
+                </div>
+                <div class="processed-text">
+                    <h4>Processed Text</h4>
+                    <div>{{ processed_text }}</div>
+                </div>
+            </div>
+            <div class="review-right">
+                <label for="text-{{ slide['id'] }}">Editable Copy</label>
+                <textarea id="text-{{ slide['id'] }}" class="edit-area" {% if slide['is_locked'] %}readonly{% endif %}>{{ editable_text }}</textarea>
+                <div class="controls">
+                    <button class="btn btn-success" data-action="review-save" data-slide-id="{{ slide['id'] }}" data-locked="{{ 1 if slide['is_locked'] else 0 }}" {% if slide['is_locked'] %}disabled{% endif %}>Save Changes</button>
+                    {% if slide['is_locked'] %}
+                        <span class="status-pill">Locked</span>
+                    {% else %}
+                        <span class="status-pill" id="status-{{ slide['id'] }}"></span>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+        {% endfor %}
+    {% endif %}
+</div>
+
+<script>
+function handleVideoSelection(videoId) {
+    if (!videoId) {
+        window.location.href = '/review';
+        return;
+    }
+    window.location.href = `/review/${videoId}`;
+}
+
+function saveText(slideId, locked) {
+    if (locked) {
+        return;
+    }
+
+    const textarea = document.getElementById(`text-${slideId}`);
+    const statusEl = document.getElementById(`status-${slideId}`);
+    if (!textarea) {
+        return;
+    }
+
+    const payload = {
+        final_text: textarea.value,
+        is_locked: false
+    };
+
+    fetch(`/api/update_text/${slideId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            if (!statusEl) {
+                return;
+            }
+            if (data.success) {
+                statusEl.textContent = 'Saved';
+                statusEl.classList.remove('error');
+                statusEl.classList.add('success');
+                setTimeout(() => {
+                    statusEl.textContent = '';
+                    statusEl.classList.remove('success');
+                }, 2500);
+            } else {
+                statusEl.textContent = data.message || 'Unable to save';
+                statusEl.classList.remove('success');
+                statusEl.classList.add('error');
+            }
+        })
+        .catch((err) => {
+            if (!statusEl) {
+                return;
+            }
+            statusEl.textContent = err.message || 'Error';
+            statusEl.classList.remove('success');
+            statusEl.classList.add('error');
+        });
+}
+</script>
+{% endblock %}

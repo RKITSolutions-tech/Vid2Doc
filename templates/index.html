@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="row">
+    <div class="col-md-8">
+      <h1>Welcome to Video Documentation</h1>
+      <p>Upload a video to extract slides and generate documentation.</p>
+      <p>
+        <a class="btn btn-primary" href="/upload">Upload Video</a>
+        <a class="btn btn-secondary" href="/document-editing">Document Editing</a>
+      </p>
+    </div>
+    <div class="col-md-4">
+      <h5>Quick Links</h5>
+      <ul>
+        <li><a href="{{ url_for('review_video') }}">Review processed videos</a></li>
+        <li><a href="{{ url_for('system_settings') }}">System settings</a></li>
+      </ul>
+    </div>
+  </div>
+{% endblock %}

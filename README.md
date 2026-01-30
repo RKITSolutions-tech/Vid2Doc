@@ -27,6 +27,7 @@ A Flask-based web application that automatically generates documentation from vi
 
 - Python 3.12+
 - FFmpeg (for video processing)
+- OpenCV (recommended). If OpenCV is not installed, the app will attempt to use the system `ffprobe` (from FFmpeg) as a fallback to gather video metadata.
 
 ### Setup
 
@@ -90,6 +91,31 @@ For more examples, see:
 - [example_dual_resolution.py](example_dual_resolution.py) - Dual-resolution processing example
 - [DUAL_RESOLUTION_FEATURE.md](DUAL_RESOLUTION_FEATURE.md) - Complete feature documentation
 
+## Devcontainer (recommended for development)
+
+If you want a reproducible development environment (including CUDA-enabled PyTorch), use the provided devcontainer configuration.
+
+Steps:
+
+1. Rebuild the devcontainer in VS Code: Command Palette -> Remote-Containers: Rebuild and Reopen in Container
+2. The post-create script will install micromamba, create a `dev` conda environment, install PyTorch + CUDA packages, and then install project Python dependencies into the micromamba `dev` env. It will also create a lightweight `.venv` in the project root and install a minimal set of packages so `bash start_flask.sh` can run out-of-the-box.
+
+To activate and use the environments:
+
+- Activate the micromamba env:
+
+  micromamba activate dev
+
+- Use the project's venv (created at `.venv`) for the Flask helper script:
+
+  source .venv/bin/activate
+  bash start_flask.sh full
+
+Notes:
+- The post-create step filters out `torch`/`torchvision`/`torchaudio` from `requirements.txt` because those should be installed from the PyTorch channel matching your CUDA runtime.
+- You can edit `.devcontainer/post_create.sh` to tweak package versions or add more tools you need.
+
+
 ## Testing
 
 The project includes a comprehensive test suite with automated smoke tests and manual tests.
@@ -100,13 +126,13 @@ These tests verify core functionality and run in seconds:
 
 ```bash
 # Test basic functionality (database, video utilities, PDF generation)
-python test/test_basic.py
+pytest tests/test_basic.py
 
 # Test Flask app initialization and routes
-python test/test_smoke_flask.py
+pytest tests/test_smoke_flask.py
 
 # Test video processing pipeline end-to-end
-python test/test_smoke_demo.py
+pytest tests/test_smoke_demo.py
 ```
 
 ### Complete Workflow Test
@@ -115,7 +141,7 @@ This test processes the actual `small_demo_video.mp4` file and validates the com
 
 ```bash
 # Run complete end-to-end smoke test (requires small_demo_video.mp4)
-python test/test_smoke_workflow.py
+pytest tests/test_smoke_workflow.py
 ```
 
 This test:
@@ -132,19 +158,19 @@ These tests are more comprehensive and require demo videos:
 
 ```bash
 # Run all database tests
-pytest -xvs test/test_suite.py::TestDatabase
+pytest -xvs tests/test_suite.py::TestDatabase
 
 # Run video processing test (requires demo_video.mp4)
-pytest -xvs test/test_suite.py::TestVideoProcessing::test_process_demo_video
+pytest -xvs tests/test_suite.py::TestVideoProcessing::test_process_demo_video
 
 # Run text editing test
-pytest -xvs test/test_suite.py::TestTextEditing::test_edit_text_and_create_sections
+pytest -xvs tests/test_suite.py::TestTextEditing::test_edit_text_and_create_sections
 
 # Run PDF generation test
-pytest -xvs test/test_suite.py::TestPDFGeneration::test_export_pdf
+pytest -xvs tests/test_suite.py::TestPDFGeneration::test_export_pdf
 
 # View test instructions
-python test/test_suite.py
+python tests/test_suite.py
 ```
 
 ### Demo Script
@@ -161,10 +187,10 @@ This project uses GitHub Actions for continuous integration. The CI workflow aut
 ### What Gets Tested
 
 The CI workflow runs:
-- **Database Tests**: All database CRUD operations (`test/test_suite.py::TestDatabase`)
-- **Basic Tests**: Core functionality verification (`test/test_basic.py`)
-- **Flask App Smoke Test**: Verifies Flask app can start and routes work (`test/test_smoke_flask.py`)
-- **Video Processing Smoke Test**: End-to-end video processing with synthetic test video (`test/test_smoke_demo.py`)
+- **Database Tests**: All database CRUD operations (`tests/test_suite.py::TestDatabase`)
+- **Basic Tests**: Core functionality verification (`tests/test_basic.py`)
+- **Flask App Smoke Test**: Verifies Flask app can start and routes work (`tests/test_smoke_flask.py`)
+- **Video Processing Smoke Test**: End-to-end video processing with synthetic test video (`tests/test_smoke_demo.py`)
 
 Manual tests that require demo videos are excluded from CI and should be run locally during development.
 
@@ -186,7 +212,7 @@ This workflow can be triggered manually from the GitHub Actions UI:
 
 You can also run it locally:
 ```bash
-python test/test_smoke_workflow.py
+pytest tests/test_smoke_workflow.py
 ```
 
 ### Running CI Locally
@@ -198,10 +224,10 @@ To run the same tests that CI runs:
 pip install -r requirements.txt
 
 # Run all CI tests
-pytest -xvs test/test_suite.py::TestDatabase
-python test/test_basic.py
-python test/test_smoke_flask.py
-python test/test_smoke_demo.py
+pytest -xvs tests/test_suite.py::TestDatabase
+pytest tests/test_basic.py
+pytest tests/test_smoke_flask.py
+pytest tests/test_smoke_demo.py
 ```
 
 ### CI Configuration

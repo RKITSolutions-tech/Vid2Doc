@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Audio Failure Detail</h2>
+  <p><strong>Filename:</strong> {{ failure.filename or 'unknown' }}</p>
+  <p><strong>Reason:</strong> {{ failure.error or 'unknown' }}</p>
+  <p><a class="btn btn-secondary" href="{{ url_for('api_list_orphan_wavs') }}">List orphan WAVs (API)</a></p>
+{% endblock %}

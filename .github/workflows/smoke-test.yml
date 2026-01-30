@@ -34,7 +34,7 @@ jobs:
     - name: Run Complete End-to-End Smoke Test
       id: smoke-test
       run: |
-        python test/test_smoke_workflow.py
+        pytest tests/test_smoke_workflow.py
     
     - name: Upload Test Artifacts
       if: always()

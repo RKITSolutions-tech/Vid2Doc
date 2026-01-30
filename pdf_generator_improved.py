@@ -3,12 +3,31 @@
 
 """Improved PDF generation with better layout"""
 import os
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import inch
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import Paragraph, Frame
-from reportlab.lib.enums import TA_LEFT
+# Make ReportLab optional at import time so the Flask app can run without it.
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import inch
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import Paragraph, Frame
+    from reportlab.lib.enums import TA_LEFT
+    REPORTLAB_AVAILABLE = True
+except Exception:
+    # Provide minimal placeholders and defer raising until PDF generation is attempted
+    REPORTLAB_AVAILABLE = False
+    # Use reasonable defaults where needed
+    letter = (612, 792)
+    canvas = None
+    inch = 72
+    def getSampleStyleSheet():
+        # Return a dict-like with a 'Normal' key to satisfy callers until installed
+        return {'Normal': None}
+    class Paragraph:
+        pass
+    class Frame:
+        pass
+    TA_LEFT = 0
+
 import logging
 
 from models_sqlalchemy import Video, Slide, TextExtract, SessionLocal
@@ -24,6 +43,8 @@ class PDFGenerator:
         output_dir = os.path.dirname(output_path)
         if output_dir and not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
+        if not REPORTLAB_AVAILABLE or canvas is None:
+            raise ImportError("ReportLab is required for PDF generation; install with 'pip install reportlab'")
         self.canvas = canvas.Canvas(output_path, pagesize=letter)
         self.width, self.height = letter
         self.styles = getSampleStyleSheet()

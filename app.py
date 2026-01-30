@@ -1160,7 +1160,12 @@ def api_upload():
     except Exception:
         logging.exception('Failed to extract preview frame (ignored)')
 
-    properties = _normalize_properties(get_video_properties(filepath))
+    try:
+        properties = _normalize_properties(get_video_properties(filepath))
+    except ImportError as e:
+        logging.exception('Failed to get video properties due to missing dependency')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
     file_id = uuid4().hex
     uploaded_files[file_id] = {
         'path': filepath,

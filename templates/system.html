@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>System Settings</h2>
+  <p>System utilities and maintenance actions.</p>
+  <div class="mb-3">
+    <form method="post" action="/admin/reset-db">
+      <button class="btn btn-warning">Reset Database</button>
+    </form>
+  </div>
+  <div>
+    <a class="btn btn-outline-secondary" href="/export/slides_csv">Export slides CSV</a>
+  </div>
+{% endblock %}

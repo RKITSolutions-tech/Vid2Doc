@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Video{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 style="margin-bottom: clamp(15px, 4vw, 20px);">Upload Video</h2>
+    <p style="margin: clamp(10px, 3vw, 15px) 0; color: #666; font-size: clamp(14px, 2.5vw, 16px);">
+        Upload a video file to extract slides and text. Supported formats: MP4, AVI, MOV, MKV
+    </p>
+    
+    <form method="POST" enctype="multipart/form-data" style="margin-top: clamp(20px, 5vw, 30px);">
+        <div style="margin-bottom: clamp(15px, 4vw, 20px);">
+            <label for="video" style="display: block; margin-bottom: clamp(6px, 2vw, 8px); font-weight: bold; font-size: clamp(14px, 2.5vw, 16px);">
+                Select Video File:
+            </label>
+            <input type="file" 
+                   id="video" 
+                   name="video" 
+                   accept=".mp4,.avi,.mov,.mkv" 
+                   required
+                   style="padding: clamp(8px, 2vw, 10px); border: 1px solid #ddd; border-radius: 4px; width: 100%; font-size: clamp(14px, 2.5vw, 16px); box-sizing: border-box;">
+        </div>
+        
+        <div style="margin-top: clamp(15px, 4vw, 20px); display: flex; flex-wrap: wrap; gap: 10px;">
+            <button type="submit" class="btn btn-success">Upload and Process</button>
+            <a href="{{ url_for('index') }}" class="btn" style="background-color: #95a5a6;">Cancel</a>
+        </div>
+        
+        <div style="margin-top: clamp(15px, 4vw, 20px); padding: clamp(12px, 3vw, 15px); background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; font-size: clamp(13px, 2.5vw, 14px);">
+            <strong>Note:</strong> Video processing may take several minutes depending on the video length. 
+            Please be patient and do not close this window.
+        </div>
+    </form>
+</div>
+{% endblock %}

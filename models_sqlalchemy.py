@@ -4,26 +4,38 @@ This module defines ORM models that map to the existing sqlite tables. It is
 intended to be used alongside the current `database.py` until migration is
 complete.
 """
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Float,
-    Boolean,
-    Text,
-    ForeignKey,
-    DateTime,
-    create_engine,
-)
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 import os
+
+# Make SQLAlchemy optional at import time so the Flask app can run without it.
+try:
+    from sqlalchemy import (
+        Column,
+        Integer,
+        String,
+        Float,
+        Boolean,
+        Text,
+        ForeignKey,
+        DateTime,
+        create_engine,
+    )
+    from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+    SQLALCHEMY_AVAILABLE = True
+except Exception:
+    # Defer raising errors until actual DB/model operations are attempted.
+    SQLALCHEMY_AVAILABLE = False
 
 BASE_DIR = os.path.abspath(os.getcwd())
 DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI', f'sqlite:///{os.path.join(BASE_DIR, "video_documentation.db")}')
 
-engine = create_engine(DATABASE_URI, echo=False, future=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-Base = declarative_base()
+if SQLALCHEMY_AVAILABLE:
+    engine = create_engine(DATABASE_URI, echo=False, future=True)
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base = declarative_base()
+else:
+    engine = None
+    SessionLocal = None
+    Base = None
 
 
 def reinit_engine(new_database_uri=None):
@@ -48,84 +60,106 @@ def reinit_engine(new_database_uri=None):
     SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
-class Section(Base):
-    __tablename__ = 'sections'
-    id = Column(Integer, primary_key=True)
-    video_id = Column(Integer, ForeignKey('videos.id'), nullable=False)
-    title = Column(String, nullable=False)
-    order_index = Column(Integer, nullable=False)
-    create_new_page = Column(Boolean, default=False)
-    created_at = Column(DateTime)
-    video = relationship('Video', backref='sections')
-    slides = relationship('Slide', backref='section', order_by='Slide.frame_number')
+if SQLALCHEMY_AVAILABLE:
+    class Section(Base):
+        __tablename__ = 'sections'
+        id = Column(Integer, primary_key=True)
+        video_id = Column(Integer, ForeignKey('videos.id'), nullable=False)
+        title = Column(String, nullable=False)
+        order_index = Column(Integer, nullable=False)
+        create_new_page = Column(Boolean, default=False)
+        created_at = Column(DateTime)
+        video = relationship('Video', backref='sections')
+        slides = relationship('Slide', backref='section', order_by='Slide.frame_number')
 
-    def __repr__(self):
-        return f'<Section(id={self.id}, title={self.title})>'
-
-
-class Video(Base):
-    __tablename__ = 'videos'
-    id = Column(Integer, primary_key=True)
-    filename = Column(String, nullable=False)
-    original_path = Column(String, nullable=False)
-    duration = Column(Float, nullable=True)
-    upload_date = Column(DateTime, nullable=False)
-    processed = Column(Boolean, default=False)
-    slides = relationship('Slide', backref='video', order_by='Slide.frame_number')
-
-    def __repr__(self):
-        return f'<Video(id={self.id}, filename={self.filename})>'
+        def __repr__(self):
+            return f'<Section(id={self.id}, title={self.title})>'
 
 
-class Slide(Base):
-    __tablename__ = 'slides'
-    id = Column(Integer, primary_key=True)
-    video_id = Column(Integer, ForeignKey('videos.id'), nullable=False)
-    frame_number = Column(Integer, nullable=False)
-    timestamp = Column(Float, nullable=False)
-    image_path = Column(String, nullable=False)
-    section_id = Column(Integer, ForeignKey('sections.id'), nullable=True)
-    text_extracts = relationship('TextExtract', back_populates='slide', order_by='TextExtract.created_at')
+    class Video(Base):
+        __tablename__ = 'videos'
+        id = Column(Integer, primary_key=True)
+        filename = Column(String, nullable=False)
+        original_path = Column(String, nullable=False)
+        duration = Column(Float, nullable=True)
+        upload_date = Column(DateTime, nullable=False)
+        processed = Column(Boolean, default=False)
+        slides = relationship('Slide', backref='video', order_by='Slide.frame_number')
 
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'video_id': self.video_id,
-            'frame_number': self.frame_number,
-            'timestamp': self.timestamp,
-            'image_path': self.image_path,
-            'section_id': self.section_id,
-        }
+        def __repr__(self):
+            return f'<Video(id={self.id}, filename={self.filename})>'
 
 
-class TextExtract(Base):
-    __tablename__ = 'text_extracts'
-    id = Column(Integer, primary_key=True)
-    slide_id = Column(Integer, ForeignKey('slides.id'), nullable=False)
-    original_text = Column(Text)
-    suggested_text = Column(Text)
-    final_text = Column(Text)
-    is_locked = Column(Boolean, default=False)
-    created_at = Column(DateTime)
-    updated_at = Column(DateTime)
-    slide = relationship('Slide', back_populates='text_extracts')
+    class Slide(Base):
+        __tablename__ = 'slides'
+        id = Column(Integer, primary_key=True)
+        video_id = Column(Integer, ForeignKey('videos.id'), nullable=False)
+        frame_number = Column(Integer, nullable=False)
+        timestamp = Column(Float, nullable=False)
+        image_path = Column(String, nullable=False)
+        section_id = Column(Integer, ForeignKey('sections.id'), nullable=True)
+        text_extracts = relationship('TextExtract', back_populates='slide', order_by='TextExtract.created_at')
 
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'slide_id': self.slide_id,
-            'original_text': self.original_text,
-            'suggested_text': self.suggested_text,
-            'final_text': self.final_text,
-            'is_locked': self.is_locked,
-            'created_at': self.created_at,
-            'updated_at': self.updated_at,
-        }
+        def to_dict(self):
+            return {
+                'id': self.id,
+                'video_id': self.video_id,
+                'frame_number': self.frame_number,
+                'timestamp': self.timestamp,
+                'image_path': self.image_path,
+                'section_id': self.section_id,
+            }
 
 
-def init_models():
-    Base.metadata.create_all(bind=engine)
+    class TextExtract(Base):
+        __tablename__ = 'text_extracts'
+        id = Column(Integer, primary_key=True)
+        slide_id = Column(Integer, ForeignKey('slides.id'), nullable=False)
+        original_text = Column(Text)
+        suggested_text = Column(Text)
+        final_text = Column(Text)
+        is_locked = Column(Boolean, default=False)
+        created_at = Column(DateTime)
+        updated_at = Column(DateTime)
+        slide = relationship('Slide', back_populates='text_extracts')
+
+        def to_dict(self):
+            return {
+                'id': self.id,
+                'slide_id': self.slide_id,
+                'original_text': self.original_text,
+                'suggested_text': self.suggested_text,
+                'final_text': self.final_text,
+                'is_locked': self.is_locked,
+                'created_at': self.created_at,
+                'updated_at': self.updated_at,
+            }
+
+
+    def init_models():
+        Base.metadata.create_all(bind=engine)
+else:
+    # SQLAlchemy not available - provide lightweight placeholders so the module
+    # can be imported without heavy dependencies. Attempting to use DB-backed
+    # operations will raise a clear error.
+    class Section:
+        pass
+
+    class Video:
+        pass
+
+    class Slide:
+        pass
+
+    class TextExtract:
+        pass
+
+    def init_models():
+        raise ImportError('SQLAlchemy is required to initialize models; install with "pip install sqlalchemy"')
 
 
 if __name__ == '__main__':
-    init_models()
+    try:
+        init_models()
+    except ImportError as e:
+        print(e)

@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Audio Failures</h2>
+  <ul>
+    {% for f in failures %}
+      <li><a href="{{ url_for('audio_failure_detail', failure_id=f.id) }}">{{ f.filename or f.id }}</a></li>
+    {% else %}
+      <li>No audio failures found.</li>
+    {% endfor %}
+  </ul>
+{% endblock %}

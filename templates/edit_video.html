@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Document Editing</h2>
+
+  <div class="mb-3">
+    <label for="videoSelect" class="form-label">Select video</label>
+    <select id="videoSelect" class="form-select">
+      {% for v in videos %}
+        <option value="{{ v.id }}" {% if v.id == video_id %}selected{% endif %}>{{ v.filename }} ({{ v.slide_count or 0 }} slides)</option>
+      {% else %}
+        <option disabled>No videos available</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <h4>Slides</h4>
+  <div class="row">
+    {% for s in slides %}
+      <div class="col-md-3 mb-3">
+        <div class="card">
+          <img src="/{{ s.image_path }}" class="card-img-top" alt="slide image">
+          <div class="card-body">
+            <p class="card-text">{{ s.original_text or 'No text' }}</p>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="col-12"><em>No slides yet</em></div>
+    {% endfor %}
+  </div>
+
+{% endblock %}
