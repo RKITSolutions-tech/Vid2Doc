@@ -39,7 +39,7 @@ cd VideoDcumentation
 
 2. Bootstrap the project (create virtualenv, install Python deps, check system tools):
 ```bash
-./scripts/bootstrap.sh
+bash scripts/bootstrap.sh
 # If you prefer to install system packages automatically on Debian/Ubuntu use:
 # sudo apt update && sudo apt install ffmpeg
 ```

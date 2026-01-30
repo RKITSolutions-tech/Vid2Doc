@@ -31,9 +31,10 @@ jobs:
         pip install -r requirements.txt
       timeout-minutes: 10
     
-    - name: Sanity: run environment checker
+    - name: Sanity: run environment checker and app health
       run: |
         python scripts/check_env.py
+        python scripts/check_api_health.py
 
         pytest tests/test_basic.py
     
