@@ -10,9 +10,10 @@ _IGNORED = {
 }
 
 
-def pytest_ignore_collect(path, config):
+def pytest_ignore_collect(collection_path, config):
     try:
-        rel = os.path.relpath(str(path))
+        # pytest now passes a pathlib.Path as `collection_path` (previously py.path.local)
+        rel = os.path.relpath(str(collection_path))
     except Exception:
-        rel = str(path)
+        rel = str(collection_path)
     return rel in _IGNORED

@@ -1,7 +1,17 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+
+{% block title %}Audio Failure {{ failure['id'] }}{% endblock %}
+
 {% block content %}
-  <h2>Audio Failure Detail</h2>
-  <p><strong>Filename:</strong> {{ failure.filename or 'unknown' }}</p>
-  <p><strong>Reason:</strong> {{ failure.error or 'unknown' }}</p>
-  <p><a class="btn btn-secondary" href="{{ url_for('api_list_orphan_wavs') }}">List orphan WAVs (API)</a></p>
+<div style="padding: clamp(15px, 4vw, 20px);">
+    <h2 style="margin-bottom: clamp(15px, 4vw, 20px); font-size: clamp(18px, 4vw, 24px);">Audio Failure #{{ failure['id'] }}</h2>
+    <div style="background: white; padding: clamp(15px, 4vw, 20px); border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <p style="margin-bottom: clamp(8px, 2vw, 10px); font-size: clamp(14px, 2.5vw, 16px);"><strong>Video:</strong> {{ failure['filename'] or failure['video_id'] }}</p>
+        <p style="margin-bottom: clamp(8px, 2vw, 10px); font-size: clamp(14px, 2.5vw, 16px);"><strong>Slide ID:</strong> {{ failure['slide_id'] }}</p>
+        <p style="margin-bottom: clamp(8px, 2vw, 10px); font-size: clamp(14px, 2.5vw, 16px);"><strong>Frames:</strong> {{ failure['start_frame'] }} → {{ failure['end_frame'] }}</p>
+        <p style="margin-bottom: clamp(15px, 4vw, 20px); font-size: clamp(14px, 2.5vw, 16px);"><strong>Attempts:</strong> {{ failure['attempts'] }}</p>
+        <h3 style="margin-bottom: clamp(10px, 3vw, 15px); font-size: clamp(16px, 3vw, 20px);">Full Error Message</h3>
+        <pre style="white-space: pre-wrap; background:#f7fafc; padding: clamp(10px, 3vw, 12px); border-radius: 6px; font-size: clamp(12px, 2vw, 14px); overflow-x: auto;">{{ failure['error_message'] }}</pre>
+    </div>
+</div>
 {% endblock %}

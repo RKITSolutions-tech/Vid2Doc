@@ -1,20 +1,1357 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Video Documentation{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-layout {
+        display: grid;
+        grid-template-columns: minmax(300px, 400px) 1fr;
+        gap: clamp(15px, 4vw, 20px);
+        align-items: stretch;
+        height: calc(100vh - 160px);
+        max-height: 100%;
+    }
+
+    /* Mobile: Stack layout vertically */
+    @media (max-width: 768px) {
+        .dashboard-layout {
+            grid-template-columns: 1fr;
+            height: auto;
+            gap: 15px;
+        }
+    }
+
+    .panel-card {
+        background: white;
+        padding: clamp(12px, 3vw, 16px) clamp(14px, 3.5vw, 18px);
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+    }
+
+    .dashboard-layout > div:first-child,
+    .dashboard-layout > div:last-child {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        min-height: 0;
+    }
+
+    .dashboard-layout > div:first-child {
+        overflow-y: auto;
+        padding-right: 6px;
+    }
+
+    .dashboard-layout > div:last-child {
+        overflow: hidden;
+    }
+
+    .panel-card h2,
+    .panel-card h3 {
+        margin-bottom: 12px;
+        font-weight: 600;
+        color: #1f3c88;
+    }
+
+    .panel-card h2 {
+        font-size: 18px;
+    }
+
+    .panel-card h3 {
+        font-size: 15px;
+    }
+
+    .upload-controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .primary-btn {
+        background: linear-gradient(135deg, #1f3c88, #4e73df);
+        border: none;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 28px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .primary-btn:disabled {
+        background: #a0aec0;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    .primary-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 20px rgba(79, 114, 234, 0.3);
+    }
+
+    .progress-wrapper {
+        margin-top: 18px;
+    }
+
+    .progress-bar {
+        width: 100%;
+        height: 10px;
+        background: #e2e8f0;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #1f3c88, #4e73df);
+        transition: width 0.3s ease;
+    }
+
+    .progress-text {
+        margin-top: 6px;
+        font-size: 12px;
+        color: #4a5568;
+    }
+
+    .file-properties dl {
+        display: grid;
+        grid-template-columns: minmax(100px, 120px) 1fr;
+        gap: 6px clamp(10px, 3vw, 14px);
+        font-size: clamp(12px, 2.5vw, 14px);
+    }
+
+    .file-properties dt {
+        font-weight: 600;
+        color: #2d3748;
+    }
+
+    .file-properties dd {
+        margin: 0;
+        color: #4a5568;
+    }
+
+    .settings-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .setting-control label {
+        display: flex;
+        align-items: center;
+        font-size: 12px;
+        color: #334155;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+
+    .tooltip-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 6px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        font-size: 10px;
+        color: #1f3c88;
+        border: 1px solid #cbd5e0;
+        background: #edf2f7;
+        cursor: help;
+        font-weight: 700;
+    }
+
+    .slider-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .slider-value {
+        min-width: 44px;
+        text-align: right;
+        font-size: 12px;
+        font-weight: 600;
+        color: #1f3c88;
+    }
+
+    .settings-grid input[type="range"] {
+        flex: 1;
+        accent-color: #4e73df;
+    }
+
+    .settings-grid select,
+    .settings-grid input[type="text"] {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid #cbd5e0;
+        font-size: 13px;
+        background: #f7fafc;
+        transition: border-color 0.2s ease;
+    }
+
+    .settings-grid select:focus,
+    .settings-grid input[type="text"]:focus {
+        border-color: #4e73df;
+        outline: none;
+        background: white;
+    }
+
+    .process-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+    }
+
+    .process-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .danger-btn {
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+        border: none;
+        color: white;
+        padding: 10px 18px;
+        border-radius: 28px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .danger-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 20px rgba(239, 68, 68, 0.25);
+    }
+
+    .danger-btn:disabled {
+        background: #cbd5e1;
+        cursor: not-allowed;
+        box-shadow: none;
+        color: #475569;
+    }
+
+    .status-chip {
+        font-size: 12px;
+        color: #2d3748;
+        background: #edf2f7;
+        padding: 5px 10px;
+        border-radius: 999px;
+    }
+
+    .log-card {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        flex: 1;
+        gap: 16px;
+    }
+
+    .processing-body {
+        display: grid;
+        grid-template-columns: minmax(220px, 320px) 1fr;
+        gap: 16px;
+        align-items: start;
+    }
+
+    .output-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        height: 100%;
+    }
+
+    .preview-container {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 16px;
+        border: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .preview-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: #334155;
+    }
+
+    .preview-controls label {
+        font-weight: 600;
+    }
+
+    .preview-controls select {
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid #cbd5e0;
+        font-size: 12px;
+        background: #f7fafc;
+        color: #1f2937;
+    }
+
+    .preview-header h3 {
+        margin: 0;
+        font-size: 16px;
+        color: #1f3c88;
+    }
+
+    .preview-meta {
+        font-size: 12px;
+        color: #4a5568;
+        font-weight: 600;
+    }
+
+    .preview-image-wrapper {
+        position: relative;
+        width: min(100%, 320px);
+        aspect-ratio: 1 / 1;
+        background: #0f172a;
+        border-radius: 10px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+    }
+
+    .preview-image-wrapper img {
+        width: 100%;
+        height: 100%;
+        display: none;
+        object-fit: contain;
+    }
+
+    .preview-placeholder {
+        color: #94a3b8;
+        font-size: 13px;
+        text-align: center;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        line-height: 1.4;
+    }
+
+    .log-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .log-header h2 {
+        margin: 0;
+        font-size: 20px;
+        color: #1f3c88;
+    }
+
+    .progress-indicator {
+        font-size: 20px;
+        font-weight: 600;
+        color: #4e73df;
+    }
+
+    .log-text {
+        width: 100%;
+        flex: 1;
+        min-height: 220px;
+        max-height: 42vh;
+        border-radius: 12px;
+        border: none;
+        background: #0f172a;
+        color: #e2e8f0;
+        font-family: "Fira Code", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 8px;
+        line-height: 1.55;
+        padding: 12px 14px;
+        box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.1);
+        resize: none;
+        overflow: auto;
+    }
+
+    .extracts-panel {
+        margin-top: 20px;
+        background: #f8fafc;
+        padding: 16px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        max-height: 28vh;
+        overflow: auto;
+    }
+
+    /* GPU diagnostics styling */
+    .gpu-card {
+        background: linear-gradient(180deg, #ffffff, #fbfeff);
+        border-radius: 8px;
+        padding: 10px;
+        border: 1px solid #e6eef8;
+    }
+    .gpu-title {
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 6px;
+    }
+    .gpu-item { font-size: 13px; color: #334155; margin-bottom:4px }
+    .gpu-key { font-weight: 700; color: #1f3c88 }
+    .gpu-pre { background: #0f172a; color: #e6eef8; padding: 8px; border-radius: 6px; overflow:auto; font-family: monospace; font-size:12px }
+
+    .extracts-panel h3 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-size: 14px;
+        color: #2d3748;
+    }
+
+    .extract-item {
+        margin-bottom: 14px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .extract-item:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .extract-meta {
+        font-size: 11px;
+        color: #718096;
+        margin-bottom: 4px;
+        font-weight: 600;
+    }
+
+    .extract-text {
+        font-size: 9px; /* ~40% smaller than 13px */
+        color: #2d3748;
+        line-height: 1.4;
+    }
+
+    .alert-inline {
+        margin-top: 10px;
+        font-size: 12px;
+        color: #c53030;
+    }
+
+    .success-inline {
+        color: #2f855a;
+    }
+
+    @media (max-width: 1180px) {
+        .dashboard-layout {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+
+        .panel-card.log-card {
+            order: 3;
+        }
+
+        .dashboard-layout > div:first-child,
+        .dashboard-layout > div:last-child {
+            overflow: visible;
+            padding-right: 0;
+        }
+
+        .processing-body {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-  <div class="row">
-    <div class="col-md-8">
-      <h1>Welcome to Video Documentation</h1>
-      <p>Upload a video to extract slides and generate documentation.</p>
-      <p>
-        <a class="btn btn-primary" href="/upload">Upload Video</a>
-        <a class="btn btn-secondary" href="/document-editing">Document Editing</a>
-      </p>
+<div class="dashboard-layout">
+    <div>
+        <div class="panel-card">
+            <h2>Upload Video</h2>
+            <div class="upload-controls">
+                <button class="primary-btn" id="upload-btn">Choose Video</button>
+                <input type="file" id="video-input" accept=".mp4,.avi,.mov,.mkv" hidden>
+                <span id="selected-file" style="font-size: 14px; color: #4a5568;">No file selected</span>
+            </div>
+            <div class="progress-wrapper">
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" id="upload-progress"></div>
+                </div>
+                <div class="progress-text" id="upload-status-text">Waiting for file...</div>
+            </div>
+            <div class="file-properties" id="file-properties" style="display: none; margin-top: 20px;">
+                <h3 style="font-size: 16px; margin-bottom: 12px;">Video Properties</h3>
+                <dl id="file-properties-list"></dl>
+            </div>
+        </div>
+
+        <div class="panel-card">
+            <h2>Processing Settings</h2>
+            <form id="settings-form">
+                <div class="settings-grid">
+                    <div class="setting-control">
+                        <label for="extraction_method">Extraction Method
+                            <span class="tooltip-icon" title="Choose the keyframe extraction method: 'default' uses frame-by-frame analysis, 'katna' uses AI-based keyframe detection.">?</span>
+                        </label>
+                        <select id="extraction_method" name="extraction_method">
+                            <option value="default" selected>Default (Frame Analysis)</option>
+                            <option value="katna">Katna (AI Keyframes)</option>
+                            <option value="frame_analysis_gpu">Frame analysis (GPU)</option>
+                        </select>
+                    </div>
+                    <div class="setting-control gpu-setting" style="display: none;">
+                        <label for="gpu_device">Device
+                            <span class="tooltip-icon" title="Choose processing device for GPU frame analysis.">?</span>
+                        </label>
+                        <select id="gpu_device" name="device">
+                            <option value="cuda">CUDA (GPU)</option>
+                            <option value="cpu">CPU</option>
+                        </select>
+                    </div>
+                    <div class="setting-control katna-setting" style="display: none;">
+                        <label for="katna_max_keyframes">Max Keyframes (Katna)
+                            <span class="tooltip-icon" title="Maximum number of keyframes to extract. Leave at 0 for auto-calculation based on video duration (1 per 30 seconds).">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="katna_max_keyframes" name="katna_max_keyframes" min="0" max="100" step="5" value="0" data-display="katna_max_keyframes_value">
+                            <span class="slider-value" id="katna_max_keyframes_value">Auto</span>
+                        </div>
+                    </div>
+                    <div class="setting-control default-setting">
+                        <label for="threshold_ssim">SSIM Threshold
+                            <span class="tooltip-icon" title="Minimum structural similarity between frames before a slide change is registered. Lower values detect more changes.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="threshold_ssim" name="threshold_ssim" min="0.5" max="1" step="0.01" value="0.9" data-display="threshold_ssim_value">
+                            <span class="slider-value" id="threshold_ssim_value">0.90</span>
+                        </div>
+                    </div>
+                    <div class="setting-control default-setting">
+                        <label for="threshold_hist">Histogram Threshold
+                            <span class="tooltip-icon" title="Minimum histogram correlation between frames. Lower values make slide detection more sensitive to color changes.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="threshold_hist" name="threshold_hist" min="0.5" max="1" step="0.01" value="0.9" data-display="threshold_hist_value">
+                            <span class="slider-value" id="threshold_hist_value">0.90</span>
+                        </div>
+                    </div>
+                    <div class="setting-control default-setting">
+                        <label for="frame_gap">Frame Gap
+                            <span class="tooltip-icon" title="Minimum number of frames between detected slides. Increases spacing to prevent duplicates.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="frame_gap" name="frame_gap" min="1" max="120" step="1" value="10" data-display="frame_gap_value">
+                            <span class="slider-value" id="frame_gap_value">10</span>
+                        </div>
+                    </div>
+                    <div class="setting-control default-setting">
+                        <label for="transition_limit">Transition Confirm
+                            <span class="tooltip-icon" title="Number of consecutive trigger frames required before locking in a slide change.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="transition_limit" name="transition_limit" min="1" max="10" step="1" value="3" data-display="transition_limit_value">
+                            <span class="slider-value" id="transition_limit_value">3</span>
+                        </div>
+                    </div>
+                    <div class="setting-control default-setting">
+                        <label for="histogram_bins">Histogram Bins
+                            <span class="tooltip-icon" title="Number of bins used when comparing color histograms. More bins capture finer detail at the cost of speed.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="histogram_bins" name="histogram_bins" min="32" max="512" step="32" value="256" data-display="histogram_bins_value">
+                            <span class="slider-value" id="histogram_bins_value">256</span>
+                        </div>
+                    </div>
+                    <div class="setting-control default-setting">
+                        <label for="scale_percent">Processing Resolution %
+                            <span class="tooltip-icon" title="Percentage to downscale frames for slide change detection. Lower values (e.g., 10-25%) speed up processing significantly. This does NOT affect the quality of saved slide images.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="scale_percent" name="scale_percent" min="10" max="100" step="5" value="100" data-display="scale_percent_value">
+                            <span class="slider-value" id="scale_percent_value">100%</span>
+                        </div>
+                    </div>
+                    <div class="setting-control katna-setting" style="display: none;">
+                        <label for="katna_scale_percent">Processing Resolution %
+                            <span class="tooltip-icon" title="Percentage to downscale frames during Katna keyframe extraction. Lower values (e.g., 25-50%) can significantly speed up processing. This does NOT affect the quality of saved slide images.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="katna_scale_percent" name="katna_scale_percent" min="10" max="100" step="5" value="50" data-display="katna_scale_percent_value">
+                            <span class="slider-value" id="katna_scale_percent_value">50%</span>
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <label for="target_resolution_percent">Target Image Resolution %
+                            <span class="tooltip-icon" title="Percentage to scale captured slide images. Set to 100% for full quality. Lower values reduce file size but may impact image clarity in PDFs. Works with both extraction methods.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="target_resolution_percent" name="target_resolution_percent" min="25" max="100" step="5" value="100" data-display="target_resolution_percent_value">
+                            <span class="slider-value" id="target_resolution_percent_value">100%</span>
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <label for="whisper_model">Whisper Model
+                            <span class="tooltip-icon" title="Choose the Whisper transcription model. Larger models improve accuracy but use more resources. Suggested: start with 'base' for balanced performance.">?</span>
+                        </label>
+                        <select id="whisper_model" name="whisper_model">
+                            <option value="tiny">tiny</option>
+                            <option value="base" selected>base</option>
+                            <option value="small">small</option>
+                            <option value="medium">medium</option>
+                            <option value="large">large</option>
+                        </select>
+                    </div>
+                    <div class="setting-control">
+                        <label for="progress_interval">Progress Interval
+                            <span class="tooltip-icon" title="Number of frames between progress updates reported to the dashboard.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="progress_interval" name="progress_interval" min="5" max="200" step="5" value="25" data-display="progress_interval_value">
+                            <span class="slider-value" id="progress_interval_value">25</span>
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <label for="summary_min_length">Summary Min Length
+                            <span class="tooltip-icon" title="Minimum number of tokens the summarizer should produce for each segment.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="summary_min_length" name="summary_min_length" min="10" max="200" step="5" value="30" data-display="summary_min_length_value">
+                            <span class="slider-value" id="summary_min_length_value">30</span>
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <label for="summary_max_length">Summary Max Length
+                            <span class="tooltip-icon" title="Maximum tokens allowed in each summary. Keep higher than the minimum length.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="summary_max_length" name="summary_max_length" min="40" max="400" step="10" value="150" data-display="summary_max_length_value">
+                            <span class="slider-value" id="summary_max_length_value">150</span>
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <label for="summary_model">Summary Model
+                            <span class="tooltip-icon" title="Transformers summarization model name used for text condensation. Suggested: 'sshleifer/distilbart-cnn-12-6' for concise results.">?</span>
+                        </label>
+                        <input type="text" id="summary_model" name="summary_model" value="sshleifer/distilbart-cnn-12-6">
+                    </div>
+                    <div class="setting-control">
+                        <label for="audio_retry_attempts">Audio Retry Attempts
+                            <span class="tooltip-icon" title="Number of times to retry ffmpeg audio extraction on transient failures.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="range" id="audio_retry_attempts" name="audio_retry_attempts" min="1" max="5" step="1" value="3" data-display="audio_retry_attempts_value">
+                            <span class="slider-value" id="audio_retry_attempts_value">3</span>
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <label for="min_slide_audio_seconds">Min Slide Audio (s)
+                            <span class="tooltip-icon" title="Minimum duration in seconds an audio segment must be to trigger a new slide. Prevents creating very short captures.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="number" id="min_slide_audio_seconds" name="min_slide_audio_seconds" min="0" step="0.1" value="0.0" style="width:100px;">
+                            <span class="slider-value">s</span>
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <label for="audio_skip_on_failure">Skip Failed Audio Extractions
+                            <span class="tooltip-icon" title="If checked, processing will continue and insert empty extracts when audio extraction repeatedly fails. Unchecked will surface an error and stop processing.">?</span>
+                        </label>
+                        <div class="slider-row">
+                            <input type="checkbox" id="audio_skip_on_failure" name="audio_skip_on_failure" checked>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
     </div>
-    <div class="col-md-4">
-      <h5>Quick Links</h5>
-      <ul>
-        <li><a href="{{ url_for('review_video') }}">Review processed videos</a></li>
-        <li><a href="{{ url_for('system_settings') }}">System settings</a></li>
-      </ul>
+
+    <div>
+        <div class="panel-card log-card">
+            <div class="log-header">
+                <h2>Processing Output</h2>
+                <div class="progress-indicator" id="progress-indicator">0%</div>
+            </div>
+            <div class="processing-body">
+                <div class="preview-container">
+                    <div class="preview-header">
+                        <h3>Frame Preview</h3>
+                        <div class="preview-meta" id="preview-meta">Waiting for preview...</div>
+                    </div>
+                    <div class="preview-controls">
+                        <label for="preview-interval-select">Frames between previews</label>
+                        <select id="preview-interval-select" name="preview_interval">
+                            <option value="250">250</option>
+                            <option value="500" selected>500</option>
+                            <option value="750">750</option>
+                            <option value="1000">1000</option>
+                        </select>
+                    </div>
+                    <div class="preview-image-wrapper">
+                        <img id="preview-image" alt="Current processing frame">
+                        <div id="preview-placeholder" class="preview-placeholder">No preview yet</div>
+                    </div>
+                </div>
+                <div class="output-panel">
+                    <textarea class="log-text" id="log-stream" readonly>Upload a video to begin processing.</textarea>
+                    <div class="extracts-panel" id="extracts-panel" style="display: none;">
+                        <h3>Recent Text Extracts</h3>
+                        <div id="extracts-list"></div>
+                    </div>
+                    <div id="gpu-diagnostics" style="display:none; margin-top:8px; border:1px solid #ddd; padding:8px; background:#fafafa;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="panel-card process-panel">
+            <div class="process-footer">
+                <div>
+                    <div class="process-actions">
+                        <button class="primary-btn" id="process-btn" disabled>Process File</button>
+                        <button class="danger-btn" id="cancel-btn" disabled>Stop Processing</button>
+                    </div>
+                    <div id="process-message" class="progress-text"></div>
+                </div>
+                <div class="status-chip" id="job-status">Status: idle</div>
+            </div>
+        </div>
     </div>
-  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Small helper to escape HTML for safe insertion of JSON into the DOM
+    const escapeHtml = (unsafe) => {
+        if (unsafe === null || unsafe === undefined) return '';
+        return String(unsafe)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    };
+
+    const uploadBtn = document.getElementById('upload-btn');
+    const fileInput = document.getElementById('video-input');
+    const selectedFileLabel = document.getElementById('selected-file');
+    const uploadProgress = document.getElementById('upload-progress');
+    const uploadStatusText = document.getElementById('upload-status-text');
+    const filePropertiesWrapper = document.getElementById('file-properties');
+    const filePropertiesList = document.getElementById('file-properties-list');
+    const processBtn = document.getElementById('process-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const jobStatus = document.getElementById('job-status');
+    const processMessage = document.getElementById('process-message');
+    const progressIndicator = document.getElementById('progress-indicator');
+    const logStream = document.getElementById('log-stream');
+    const extractsPanel = document.getElementById('extracts-panel');
+    const extractsList = document.getElementById('extracts-list');
+    const previewImage = document.getElementById('preview-image');
+    const previewPlaceholder = document.getElementById('preview-placeholder');
+    const previewMeta = document.getElementById('preview-meta');
+    const previewIntervalSelect = document.getElementById('preview-interval-select');
+    const sliderInputs = Array.from(document.querySelectorAll('#settings-form input[type="range"]'));
+    const audioSkipCheckbox = document.getElementById('audio_skip_on_failure');
+    const extractionMethodSelect = document.getElementById('extraction_method');
+
+    let currentFileId = null;
+    let currentJobId = null;
+    let pollHandle = null;
+    let lastLogCount = 0;
+    let lastLogTimestampSeen = null;
+    let lastExtractCount = 0;
+    let logBuffer = [];
+    let pollErrorCount = 0;
+    let lastPreviewToken = null;
+
+    const formatBytes = (bytes) => {
+        if (!bytes && bytes !== 0) return 'Unknown';
+        const units = ['bytes', 'KB', 'MB', 'GB'];
+        let exp = Math.floor(Math.log(bytes) / Math.log(1024));
+        exp = Math.min(exp, units.length - 1);
+        const value = bytes / Math.pow(1024, exp);
+        return `${value.toFixed(exp === 0 ? 0 : 2)} ${units[exp]}`;
+    };
+
+    const renderProperties = (properties) => {
+        filePropertiesList.innerHTML = '';
+        const mappings = {
+            file_size: 'File Size',
+            fps: 'FPS',
+            frame_count: 'Frame Count',
+            total_frames: 'Total Frames',
+            duration: 'Duration (s)',
+            width: 'Width',
+            height: 'Height',
+            aspect_ratio: 'Aspect Ratio',
+            bit_rate: 'Bitrate (bps)',
+        };
+        Object.entries(mappings).forEach(([key, label]) => {
+            if (properties[key] === undefined) return;
+            let value = properties[key];
+            if (key === 'file_size') {
+                value = formatBytes(value);
+            } else if (typeof value === 'number') {
+                value = Number.isInteger(value) ? value : value.toFixed(2);
+            }
+            const dt = document.createElement('dt');
+            dt.textContent = label;
+            const dd = document.createElement('dd');
+            dd.textContent = value;
+            filePropertiesList.appendChild(dt);
+            filePropertiesList.appendChild(dd);
+        });
+    };
+
+    const resetPreview = () => {
+        if (!previewImage) return;
+        lastPreviewToken = null;
+        try {
+            previewImage.style.display = 'none';
+            previewImage.src = '';
+        } catch (e) {
+            // defensive: ignore if preview elements aren't available
+        }
+        if (previewIntervalSelect) {
+            previewMeta.textContent = `Waiting for preview (every ${previewIntervalSelect.value} frames)`;
+        } else {
+            previewMeta.textContent = 'Waiting for preview...';
+        }
+    };
+
+    const updatePreview = (job) => {
+        if (!job) {
+            return;
+        }
+        const url = job.preview_image_url;
+        const frame = job.preview_frame;
+        const timestamp = job.preview_timestamp;
+        if (!previewImage) return;
+        try {
+            if (url) {
+                if (url !== lastPreviewToken) {
+                    previewImage.src = url;
+                    lastPreviewToken = url;
+                } else if (!previewImage.src) {
+                    previewImage.src = url;
+                }
+                previewImage.style.display = 'block';
+                if (previewPlaceholder) previewPlaceholder.style.display = 'none';
+                const frameLabel = typeof frame === 'number' ? `Frame ${frame}` : 'Frame n/a';
+                const timeLabel = typeof timestamp === 'number' ? `${timestamp.toFixed(2)}s` : 'Time n/a';
+                previewMeta.textContent = `${frameLabel} • ${timeLabel}`;
+            } else {
+                resetPreview();
+            }
+        } catch (e) {
+            console.warn('updatePreview failed (missing elements?):', e);
+        }
+    };
+
+    const updateSliderDisplay = (input) => {
+        const displayId = input.dataset.display;
+        if (!displayId) return;
+        const display = document.getElementById(displayId);
+        if (!display) return;
+        const numericValue = Number(input.value);
+        if (input.id === 'katna_max_keyframes') {
+            display.textContent = numericValue === 0 ? 'Auto' : numericValue.toString();
+        } else if (input.id === 'scale_percent' || input.id === 'target_resolution_percent' || input.id === 'katna_scale_percent') {
+            display.textContent = `${Math.round(numericValue)}%`;
+        } else if (input.step && Number(input.step) < 1) {
+            display.textContent = numericValue.toFixed(2);
+        } else {
+            display.textContent = Number.isInteger(numericValue) ? numericValue.toString() : numericValue.toFixed(2);
+        }
+    };
+
+    sliderInputs.forEach((input) => {
+        updateSliderDisplay(input);
+        input.addEventListener('input', () => updateSliderDisplay(input));
+    });
+
+    // Display for audio retry attempts
+    const audioRetryInput = document.getElementById('audio_retry_attempts');
+    if (audioRetryInput) {
+        updateSliderDisplay(audioRetryInput);
+        audioRetryInput.addEventListener('input', () => updateSliderDisplay(audioRetryInput));
+    }
+
+    if (previewIntervalSelect) {
+        previewIntervalSelect.addEventListener('change', () => {
+            if (!lastPreviewToken) {
+                previewMeta.textContent = `Waiting for preview (every ${previewIntervalSelect.value} frames)`;
+            }
+        });
+    }
+
+    // Toggle settings visibility based on extraction method
+    if (extractionMethodSelect) {
+        const toggleExtractionSettings = () => {
+            const method = extractionMethodSelect.value;
+            const defaultSettings = document.querySelectorAll('.default-setting');
+            const katnaSettings = document.querySelectorAll('.katna-setting');
+            const gpuSettings = document.querySelectorAll('.gpu-setting');
+            
+            if (method === 'katna') {
+                defaultSettings.forEach(el => el.style.display = 'none');
+                katnaSettings.forEach(el => el.style.display = 'block');
+                gpuSettings.forEach(el => el.style.display = 'none');
+            } else if (method === 'frame_analysis_gpu') {
+                defaultSettings.forEach(el => el.style.display = 'block');
+                katnaSettings.forEach(el => el.style.display = 'none');
+                gpuSettings.forEach(el => el.style.display = 'block');
+            } else {
+                defaultSettings.forEach(el => el.style.display = 'block');
+                katnaSettings.forEach(el => el.style.display = 'none');
+                gpuSettings.forEach(el => el.style.display = 'none');
+            }
+        };
+        
+        extractionMethodSelect.addEventListener('change', toggleExtractionSettings);
+        toggleExtractionSettings(); // Initialize on page load
+    }
+
+    const resetJobState = () => {
+        currentJobId = null;
+        if (pollHandle) {
+            clearInterval(pollHandle);
+            pollHandle = null;
+        }
+        lastLogCount = 0;
+        lastExtractCount = 0;
+        jobStatus.textContent = 'Status: idle';
+        processMessage.textContent = '';
+        progressIndicator.textContent = '0%';
+        logBuffer = ['Upload a video to begin processing.'];
+        logStream.value = logBuffer.join('\n');
+        extractsPanel.style.display = 'none';
+        extractsList.innerHTML = '';
+        processBtn.disabled = true;
+        cancelBtn.disabled = true;
+        cancelBtn.textContent = 'Stop Processing';
+        // Only reset preview if no preview image is currently visible. This prevents the
+        // placeholder message from overwriting an already-displayed preview image.
+        if (!previewImage || previewImage.style.display === 'none' || !previewImage.src) {
+            resetPreview();
+        } else {
+            // keep current preview visible and update meta
+            if (previewIntervalSelect) {
+                previewMeta.textContent = `Waiting for preview (every ${previewIntervalSelect.value} frames)`;
+            }
+        }
+    };
+
+    const appendLogs = (logs) => {
+        if (!Array.isArray(logs)) return;
+        if (logs.length === 0) {
+            logBuffer = ['Upload a video to begin processing.'];
+            logStream.value = logBuffer.join('\n');
+            lastLogCount = 0;
+            lastLogTimestampSeen = null;
+            return;
+        }
+        // Determine the latest log timestamp and compare with last seen.
+        const latest = logs[logs.length - 1];
+        const latestTs = latest && latest.timestamp ? String(latest.timestamp) : null;
+        if (latestTs === lastLogTimestampSeen && logs.length === lastLogCount) {
+            // No new logs (content unchanged)
+            return;
+        }
+
+        // Rebuild the visible log buffer from the server logs (keep last 500 entries)
+        const rendered = logs.slice(-500).map((log) => {
+            const timestamp = log.timestamp ? new Date(log.timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
+            return `[${timestamp}] ${log.message}`;
+        });
+        logBuffer = rendered;
+        logStream.value = logBuffer.join('\n');
+        logStream.scrollTop = logStream.scrollHeight;
+        lastLogCount = logs.length;
+        lastLogTimestampSeen = latestTs;
+    };
+
+    const renderExtracts = (extracts) => {
+        if (!Array.isArray(extracts)) return;
+        if (extracts.length === 0) {
+            extractsPanel.style.display = 'none';
+            extractsList.innerHTML = '';
+            return;
+        }
+        if (extracts.length === lastExtractCount) return;
+        extractsPanel.style.display = 'block';
+        extractsList.innerHTML = '';
+        extracts.slice(-5).forEach(({ frame, timestamp, text }) => {
+            const item = document.createElement('div');
+            item.className = 'extract-item';
+            const meta = document.createElement('div');
+            meta.className = 'extract-meta';
+            const timeLabel = typeof timestamp === 'number' ? `${timestamp.toFixed(2)}s` : 'n/a';
+            meta.textContent = `Frame ${frame} • ${timeLabel}`;
+            const body = document.createElement('div');
+            body.className = 'extract-text';
+            body.textContent = text || '[no text captured]';
+            item.appendChild(meta);
+            item.appendChild(body);
+            extractsList.appendChild(item);
+        });
+        lastExtractCount = extracts.length;
+    };
+
+    const pollJob = () => {
+        if (!currentJobId) return;
+        fetch(`/api/progress/${currentJobId}`)
+            .then((res) => res.json())
+            .then((data) => {
+                if (!data.success) {
+                    processMessage.textContent = data.message || 'Unable to fetch progress.';
+                    processMessage.classList.remove('success-inline');
+                    processMessage.classList.add('alert-inline');
+                    return;
+                }
+                const job = data.job;
+                // Debug: log job snapshot so browser console can show incoming progress
+                try {
+                    console.debug('pollJob: received job snapshot', job);
+                    console.debug('pollJob: logs_count=', (job.logs || []).length, 'percent=', job.percent_complete);
+                } catch (e) {}
+                jobStatus.textContent = `Status: ${job.status}`;
+                // Always attempt to coerce percent to a number and update the indicator
+                if (job.percent_complete !== undefined && job.percent_complete !== null && !Number.isNaN(Number(job.percent_complete))) {
+                    progressIndicator.textContent = `${Number(job.percent_complete).toFixed(2)}%`;
+                } else {
+                    progressIndicator.textContent = '0%';
+                }
+                appendLogs(job.logs || []);
+                renderExtracts(job.extracts || []);
+                updatePreview(job);
+
+                // Render GPU diagnostics card when available
+                const gpuDiagContainer = document.getElementById('gpu-diagnostics');
+                if (gpuDiagContainer) {
+                    if (job.gpu_diagnostics) {
+                        const d = job.gpu_diagnostics;
+                        const title = d.device_name || (d.nvidia_smi ? d.nvidia_smi.split('\n')[0] : 'GPU');
+                        const mem = d.total_memory_mb ? `${d.total_memory_mb} MB` : '';
+                        // Build a compact key/value table for primary fields
+                        const kvHtml = [];
+                        const compactKeys = ['cuda_available','cuda_version','device_count','device_name','total_memory_mb','memory_allocated_mb','memory_reserved_mb','probe_tensor_device','probe_error'];
+                        compactKeys.forEach(k => {
+                            if (d[k] !== undefined && d[k] !== null) {
+                                kvHtml.push(`<div class="gpu-item"><span class="gpu-key">${escapeHtml(k)}:</span> ${escapeHtml(String(d[k]))}</div>`);
+                            }
+                        });
+
+                        gpuDiagContainer.style.display = 'block';
+                        gpuDiagContainer.innerHTML = '';
+                        const card = document.createElement('div');
+                        card.className = 'gpu-card';
+                        const titleEl = document.createElement('div');
+                        titleEl.className = 'gpu-title';
+                        titleEl.textContent = `${title} ${mem}`;
+                        card.appendChild(titleEl);
+
+                        const kvwrap = document.createElement('div');
+                        kvwrap.innerHTML = kvHtml.join('');
+                        card.appendChild(kvwrap);
+
+                        // Add a toggle to view full JSON diagnostics
+                        const toggle = document.createElement('button');
+                        toggle.type = 'button';
+                        toggle.style.marginTop = '8px';
+                        toggle.className = 'primary-btn';
+                        toggle.textContent = 'Show detailed diagnostics';
+                        const pre = document.createElement('pre');
+                        pre.className = 'gpu-pre';
+                        pre.style.display = 'none';
+                        pre.textContent = JSON.stringify(d, null, 2);
+                        toggle.addEventListener('click', () => {
+                            if (pre.style.display === 'none') {
+                                pre.style.display = 'block';
+                                toggle.textContent = 'Hide detailed diagnostics';
+                            } else {
+                                pre.style.display = 'none';
+                                toggle.textContent = 'Show detailed diagnostics';
+                            }
+                        });
+                        card.appendChild(toggle);
+                        card.appendChild(pre);
+                        gpuDiagContainer.appendChild(card);
+                    } else {
+                        gpuDiagContainer.style.display = 'none';
+                        gpuDiagContainer.innerHTML = '';
+                    }
+                }
+
+                if (job.status === 'completed') {
+                    if (job.edit_url) {
+                        // Render the review link using DOM APIs to avoid innerHTML issues
+                        const safeUrl = encodeURI(job.edit_url);
+                        processMessage.textContent = 'Processing finished. Review slides ';
+                        const a = document.createElement('a');
+                        a.href = safeUrl;
+                        a.textContent = 'here';
+                        a.target = '_blank';
+                        a.rel = 'noopener noreferrer';
+                        processMessage.appendChild(a);
+                        processMessage.appendChild(document.createTextNode('.'));
+                    } else {
+                        processMessage.textContent = 'Processing complete.';
+                    }
+                    processMessage.classList.remove('alert-inline');
+                    processMessage.classList.add('success-inline');
+                    clearInterval(pollHandle);
+                    pollHandle = null;
+                    processBtn.disabled = false;
+                    cancelBtn.disabled = true;
+                    cancelBtn.textContent = 'Stop Processing';
+                } else if (job.status === 'error') {
+                    processMessage.textContent = job.error || 'Processing failed.';
+                    processMessage.classList.remove('success-inline');
+                    processMessage.classList.add('alert-inline');
+                    clearInterval(pollHandle);
+                    pollHandle = null;
+                    processBtn.disabled = false;
+                    cancelBtn.disabled = true;
+                    cancelBtn.textContent = 'Stop Processing';
+                } else if (job.status === 'cancelled') {
+                    processMessage.textContent = 'Processing stopped before completion.';
+                    processMessage.classList.remove('alert-inline');
+                    processMessage.classList.remove('success-inline');
+                    clearInterval(pollHandle);
+                    pollHandle = null;
+                    processBtn.disabled = false;
+                    cancelBtn.disabled = true;
+                    cancelBtn.textContent = 'Stopped';
+                } else if (job.status === 'cancelling') {
+                    processMessage.textContent = 'Cancellation in progress...';
+                    processMessage.classList.remove('alert-inline');
+                    processMessage.classList.remove('success-inline');
+                    cancelBtn.disabled = true;
+                    cancelBtn.textContent = 'Stopping...';
+                }
+            })
+            .catch((err) => {
+                console.error('pollJob fetch error', err);
+                pollErrorCount = (pollErrorCount || 0) + 1;
+                processMessage.textContent = 'Connection lost while polling progress; retrying...';
+                processMessage.classList.add('alert-inline');
+                // after repeated failures, stop polling to avoid flooding
+                if (pollErrorCount >= 6) {
+                    processMessage.textContent = 'Unable to reach server for progress updates. Polling stopped.';
+                    if (pollHandle) {
+                        clearInterval(pollHandle);
+                        pollHandle = null;
+                    }
+                }
+            });
+    };
+
+    uploadBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+        resetJobState();
+        selectedFileLabel.textContent = file.name;
+        uploadStatusText.textContent = 'Uploading...';
+        uploadProgress.style.width = '0%';
+
+        const formData = new FormData();
+        formData.append('video', file);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload');
+
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                uploadProgress.style.width = `${percent}%`;
+                uploadStatusText.textContent = `Uploading... ${percent}%`;
+            }
+        });
+
+        xhr.onreadystatechange = () => {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (xhr.status === 200 && response.success) {
+                        currentFileId = response.file_id;
+                        uploadProgress.style.width = '100%';
+                        uploadStatusText.textContent = 'Upload complete. Ready to process.';
+                        uploadStatusText.classList.add('success-inline');
+                        renderProperties(response.properties || {});
+                        filePropertiesWrapper.style.display = 'block';
+                        processBtn.disabled = false;
+                        // If server returned a quick preview of the first frame, show it until processing updates it
+                        if (response.preview_url) {
+                            try {
+                                if (previewImage) {
+                                    previewImage.src = response.preview_url;
+                                    previewImage.style.display = 'block';
+                                }
+                                if (previewPlaceholder) {
+                                    previewPlaceholder.style.display = 'none';
+                                }
+                                lastPreviewToken = response.preview_url;
+                            } catch (err) {
+                                console.warn('Unable to show preview image', err);
+                            }
+                        }
+                    } else {
+                        throw new Error(response.message || 'Upload failed');
+                    }
+                } catch (err) {
+                    uploadStatusText.textContent = err.message;
+                    uploadStatusText.classList.remove('success-inline');
+                    uploadStatusText.classList.add('alert-inline');
+                    processBtn.disabled = true;
+                    currentFileId = null;
+                }
+            }
+        };
+
+        xhr.onerror = () => {
+            uploadStatusText.textContent = 'Upload failed due to a network error.';
+            uploadStatusText.classList.add('alert-inline');
+            processBtn.disabled = true;
+            currentFileId = null;
+        };
+
+        xhr.send(formData);
+    });
+
+    processBtn.addEventListener('click', () => {
+        if (!currentFileId) {
+            processMessage.textContent = 'Please upload a file first.';
+            processMessage.classList.add('alert-inline');
+            return;
+        }
+
+        const formData = new FormData(document.getElementById('settings-form'));
+        const settings = Object.fromEntries(formData.entries());
+        Object.keys(settings).forEach((key) => {
+            const value = settings[key];
+            if (value === '') {
+                delete settings[key];
+                return;
+            }
+            if (!isNaN(value) && value !== '') {
+                settings[key] = Number(value);
+            }
+        });
+        if (previewIntervalSelect) {
+            settings.preview_interval = Number(previewIntervalSelect.value);
+        }
+        // Include checkbox value for audio skip on failure
+        if (audioSkipCheckbox) {
+            settings.audio_skip_on_failure = !!audioSkipCheckbox.checked;
+        }
+
+        processBtn.disabled = true;
+    cancelBtn.disabled = true;
+    cancelBtn.textContent = 'Stop Processing';
+        processMessage.textContent = 'Starting processing...';
+        processMessage.classList.remove('alert-inline');
+        processMessage.classList.remove('success-inline');
+        jobStatus.textContent = 'Status: queued';
+        logBuffer = ['Queuing processing job...'];
+        logStream.value = logBuffer.join('\n');
+        logStream.scrollTop = logStream.scrollHeight;
+        extractsPanel.style.display = 'none';
+        extractsList.innerHTML = '';
+        lastLogCount = 0;
+        lastExtractCount = 0;
+        resetPreview();
+
+        fetch('/api/process', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                file_id: currentFileId,
+                settings,
+            }),
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Unable to start processing');
+                }
+                    currentJobId = data.job_id;
+                    processMessage.textContent = `Processing has started (Job ID: ${currentJobId}).`;
+                    // Show method and filename immediately so users know what is being processed
+                    const method = data.method || 'default';
+                    const fname = data.filename || '';
+                    jobStatus.textContent = `Processing: ${method} • ${fname}`;
+                    // Append a short log line to the stream for immediate feedback
+                    logBuffer.push(`[${new Date().toLocaleTimeString()}] Using method: ${method}, File: ${fname}`);
+                    logStream.value = logBuffer.join('\n');
+                processMessage.classList.add('success-inline');
+                cancelBtn.disabled = false;
+                cancelBtn.textContent = 'Stop Processing';
+                if (pollHandle) clearInterval(pollHandle);
+                pollHandle = setInterval(pollJob, 2000);
+                pollJob();
+            })
+            .catch((err) => {
+                processMessage.textContent = err.message;
+                processMessage.classList.add('alert-inline');
+                processBtn.disabled = false;
+                cancelBtn.disabled = true;
+            });
+    });
+
+    cancelBtn.addEventListener('click', () => {
+        if (!currentJobId) {
+            return;
+        }
+        cancelBtn.disabled = true;
+        cancelBtn.textContent = 'Stopping...';
+        processMessage.textContent = 'Cancellation requested...';
+        processMessage.classList.remove('alert-inline');
+        processMessage.classList.remove('success-inline');
+
+        fetch(`/api/job/${currentJobId}/cancel`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Unable to cancel processing job.');
+                }
+                jobStatus.textContent = 'Status: cancelling';
+            })
+            .catch((err) => {
+                processMessage.textContent = err.message || 'Failed to cancel processing.';
+                processMessage.classList.add('alert-inline');
+                cancelBtn.disabled = false;
+                cancelBtn.textContent = 'Stop Processing';
+            });
+    });
+
+    // Reset UI on load
+    resetJobState();
+</script>
 {% endblock %}

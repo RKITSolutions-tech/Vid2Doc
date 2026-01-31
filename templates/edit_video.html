@@ -1,32 +1,1312 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+
+{% block title %}Document Editing{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Slide row - now implemented with Bootstrap row/cols */
+    .slide-item {
+        background: #f8f9fa;
+        padding: 10px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        border: 2px solid #dee2e6;
+        /* keep row children aligned and stretched so column widths behave as Bootstrap intends */
+        align-items: stretch;
+        /* neutralize Bootstrap row gutters to avoid negative-margin overflow and clip any tiny rounding */
+        --bs-gutter-x: 0;
+        overflow-x: hidden;
+    }
+
+    @media (min-width: 768px) {
+        .slide-item {
+            display: flex !important;
+            flex-wrap: nowrap !important;
+            gap: 0; /* avoid extra width added by gaps which can cause horizontal overflow */
+            overflow-x: hidden; /* prevent any tiny rounding from creating scroll */
+        }
+        .slide-item > [class*="col-"] {
+            /* Respect bootstrap column widths but prevent further growth */
+            flex: 0 0 auto !important;
+            min-width: 0; /* allow flex items to shrink within their column */
+        }
+    }
+            flex: 0 0 auto !important;
+        }
+    }
+
+    /* Explicit column widths for the editor slide rows (desktop) to match
+       Bootstrap's col-md-* percentages. This helps when other CSS interacts
+       with flex sizing and forces the intended 4-column layout. */
+    @media (min-width: 768px) {
+        .slide-item > .col-md-1 { flex: 0 0 8.333333%; max-width: 8.333333%; }
+        .slide-item > .col-md-2 { flex: 0 0 16.666667%; max-width: 16.666667%; }
+        .slide-item > .col-md-3 { flex: 0 0 25%; max-width: 25%; }
+        .slide-item > .col-md-6 { flex: 0 0 50%; max-width: 50%; }
+    }
+
+    /* Stronger enforcement for any interfering rules: use !important to
+       ensure columns keep the intended widths and box-sizing to include
+       padding in the width calculation. */
+    @media (min-width: 768px) {
+        .slide-item > .col-md-1 { flex: 0 0 8.333333% !important; max-width: 8.333333% !important; box-sizing: border-box; }
+        .slide-item > .col-md-2 { flex: 0 0 16.666667% !important; max-width: 16.666667% !important; box-sizing: border-box; }
+        .slide-item > .col-md-3 { flex: 0 0 25% !important; max-width: 25% !important; box-sizing: border-box; }
+        .slide-item > .col-md-6 { flex: 0 0 50% !important; max-width: 50% !important; box-sizing: border-box; }
+        .slide-item > [class*="col-"] { padding-left: 8px; padding-right: 8px; }
+    }
+
+    /* Helper to create four stacked row lines inside each column so the
+       visual layout is a 4-column × 4-row grid per slide on wide screens.
+       Each `.row-line` can be a fixed-size header/footer or a flex-growing
+       center area (.line-3) that expands to fill remaining height. */
+    .row-line {
+        box-sizing: border-box;
+        padding: 4px 0;
+    }
+    .row-line.line-1,
+    .row-line.line-2,
+    .row-line.line-4 {
+        flex: 0 0 auto;
+    }
+    .row-line.line-3 {
+        flex: 1 1 auto;
+        min-height: 40px; /* give center area room to expand */
+        overflow: auto;
+    .slide-item > .col-md-1,
+    .slide-item > .col-md-2,
+    .slide-item > .col-md-3,
+    .slide-item > .col-md-6,
+    .slide-item > [class*="col-"] {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        min-width: 0; /* allow children (like textareas) to shrink without forcing overflow */
+        overflow-x: hidden; /* guard against any residual horizontal overflow */
+        /* prevent these columns from flex-growing and losing their bootstrap width (flex-basis)
+           so they sit side-by-side on wide screens */
+        flex: 0 0 auto;
+    }
+        min-height: 0;
+        /* prevent these columns from flex-growing and losing their bootstrap width (flex-basis)
+           so they sit side-by-side on wide screens */
+        flex: 0 0 auto;
+    }
+
+    /* Small adjustments for Bootstrap columns inside the slide row */
+    .slide-item .thumb-img { width:120px; height:80px; object-fit:cover; border:1px solid #ddd; display:block; margin:0 auto; }
+    /* Ensure thumbnail row centers its contents */
+    .col-md-2 .row-line.line-1 { display:flex; align-items:center; justify-content:center; }
+    .slide-item .original-box { background:#f8f9fa; padding:8px; border-radius:4px; max-height:140px; overflow:auto; }
+    .slide-item .final-text { padding:0; }
+    .slide-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: clamp(10px, 3vw, 15px);
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .slide-image {
+        max-width: min(300px, 90vw);
+        max-height: min(200px, 50vh);
+        margin-bottom: clamp(10px, 3vw, 15px);
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 100%;
+        height: auto;
+    }
+    .audio-badge {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        background: rgba(0,0,0,0.6);
+        color: white;
+        padding: 4px 6px;
+        border-radius: 12px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 5;
+    }
+    /* smaller font for original/suggested text */
+    .slide-original, .slide-suggested {
+        font-size: 60%;
+    }
+    /* modal for full-screen slide view */
+    .slide-modal {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.85);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    .slide-modal img { 
+        max-width: min(90vw, 90%); 
+        max-height: min(90vh, 90%); 
+        border: 4px solid white; 
+        border-radius:8px; 
+    }
+    .text-area {
+        width: 100%;
+        min-height: clamp(80px, 20vh, 100px);
+        padding: clamp(8px, 2vw, 10px);
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-family: inherit;
+        margin-bottom: clamp(8px, 2vw, 10px);
+        font-size: clamp(14px, 2.5vw, 16px);
+    .text-area {
+        max-width: 100%;
+        width: 100%;
+        overflow-wrap: break-word;
+        word-break: break-word; /* ensure very long tokens wrap */
+        overflow-x: hidden;     /* prevent horizontal scrollbars */
+    }
+        box-sizing: border-box;
+    }
+    .text-area {
+        max-width: 100%;
+        width: 100%;
+        overflow-wrap: break-word;
+    }
+
+    /* Constrain editing area so rows don't grow the page; allow internal scroll if content large */
+    .slide-item .text-area {
+        max-height: 180px;
+        overflow: auto;
+        resize: vertical;
+        margin-bottom: 8px;
+    }
+    .locked {
+        background-color: #e8f5e9;
+        border-color: #4caf50;
+    }
+    .section-select {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-right: 10px;
+    }
+    .toolbar {
+        background: white;
+        padding: clamp(15px, 4vw, 20px);
+        margin-bottom: clamp(15px, 4vw, 20px);
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .section-header {
+        padding: clamp(6px, 2vw, 8px) clamp(10px, 2.5vw, 12px);
+        background: #fff3cd;
+        border: 1px solid #ffeeba;
+        border-radius: 6px;
+        margin-bottom: clamp(6px, 2vw, 8px);
+        font-weight: 700;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .page-break-indicator {
+        font-size: 14px;
+        opacity: 0.8;
+        margin-left: 8px;
+    }
+    .section-badge {
+        background: #e9ecef;
+        border: 1px solid #ddd;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        color: #333;
+        margin-left: 8px;
+    }
+    .slide-key {
+        margin-top: 6px;
+        font-size: 12px;
+        color: #444;
+    }
+    /* Slides list container - internal scrolling handled by flexbox/Bootstrap */
+    #slides-list, .slides-list-container {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    /* Constrain original text so slide rows don't grow the page height */
+    .slide-original {
+        max-height: 140px;
+        overflow: auto;
+        white-space: pre-wrap;
+    }
+    /* Slides card: use flex to stretch and let #slides-list scroll internally */
+    .slides-card {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        height: 100%;
+    }
+    .slides-card > h3 { margin: 0; }
+    #slides-list {
+        flex: 1 1 auto;
+        overflow: auto;
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    /* Final column actions: group and align below the textarea on narrow heights */
+    .slide-item .actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 6px;
+        flex-wrap: wrap;
+    }
+
+    /* Keep all action buttons on a single line where possible */
+    .slide-actions-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: nowrap; /* don't wrap on desktop */
+        justify-content: flex-start;
+    }
+
+    /* Slightly tighter buttons so a full action set fits on one line */
+    .slide-actions-row .btn {
+        padding: 6px 8px;
+        font-size: 13px;
+        white-space: nowrap;
+    }
+    .slide-actions-row .reorder-group .btn { padding: 6px 6px; }
+
+    /* Mobile responsive styles */
+    @media (max-width: 768px) {
+        .slide-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .section-select {
+            width: 100%;
+            margin-right: 0;
+            margin-bottom: 8px;
+        }
+
+        .slide-image {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .section-header {
+            font-size: 14px;
+            padding: 8px;
+        }
+
+        .page-break-indicator {
+            font-size: 12px;
+            margin-left: 4px;
+        }
+
+        .section-badge {
+            font-size: 11px;
+            padding: 2px 6px;
+            margin-left: 4px;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-  <h2>Document Editing</h2>
+<div class="toolbar">
+    <h2>Document Editing</h2>
+    <div style="display:flex; gap:12px; align-items:center; margin-top:12px;">
+        <label for="video-select"><strong>Select video:</strong></label>
+        <select id="video-select" onchange="onVideoChange()">
+            <option value="">-- Select a video --</option>
+            {% for v in videos %}
+            <option value="{{ v.id }}" {% if video_id and v.id == video_id %}selected{% endif %}>{{ v.filename }} (ID: {{ v.id }})</option>
+            {% endfor %}
+        </select>
+            <button class="btn" data-action="add-slide-top" style="background:#6c757d;">Add Slide</button>
+        <!-- Review screen link removed per updated layout -->
+    </div>
 
-  <div class="mb-3">
-    <label for="videoSelect" class="form-label">Select video</label>
-    <select id="videoSelect" class="form-select">
-      {% for v in videos %}
-        <option value="{{ v.id }}" {% if v.id == video_id %}selected{% endif %}>{{ v.filename }} ({{ v.slide_count or 0 }} slides)</option>
-      {% else %}
-        <option disabled>No videos available</option>
-      {% endfor %}
-    </select>
-  </div>
-
-  <h4>Slides</h4>
-  <div class="row">
-    {% for s in slides %}
-      <div class="col-md-3 mb-3">
-        <div class="card">
-          <img src="/{{ s.image_path }}" class="card-img-top" alt="slide image">
-          <div class="card-body">
-            <p class="card-text">{{ s.original_text or 'No text' }}</p>
-          </div>
+    <div style="margin-top:16px; display:flex; gap:16px;">
+        <div style="flex:1">
+            <label><strong>Document Title</strong></label>
+            <input type="text" id="document-title" value="{{ document_title or '' }}" style="width:100%; padding:8px; margin-top:6px; border:1px solid #ddd; border-radius:4px;">
         </div>
-      </div>
-    {% else %}
-      <div class="col-12"><em>No slides yet</em></div>
-    {% endfor %}
-  </div>
+        <div style="flex:2">
+            <label><strong>Document Summary</strong></label>
+            <textarea id="document-summary" rows="2" style="width:100%; padding:8px; margin-top:6px; border:1px solid #ddd; border-radius:4px; resize:vertical; overflow-y:auto;">{{ document_summary or '' }}</textarea>
+        </div>
+    <div style="display:flex; align-items:flex-end; gap:8px;">
+        <button class="btn btn-success" data-action="save-document">Save Document Header</button>
+        <a href="#" data-action="export-pdf" class="btn">Export to PDF</a>
+        <!-- Only show delete button when a video is selected/loaded -->
+        <button class="btn btn-danger" data-action="delete-document" data-video-id="{{ video_id if video_id else '' }}" title="Delete this document and all slides/wavs" {% if not video_id %}style="display:none;"{% endif %}>Delete Document</button>
+    </div>
+    </div>
+</div>
 
+<!-- Fullscreen modal for slide preview -->
+<div id="slide-modal" class="slide-modal" data-action="close-modal">
+    <img id="slide-modal-img" src="" alt="Slide preview">
+</div>
+
+<div style="display:flex; gap:20px; margin-top:20px;">
+    <div style="flex:1;">
+    <div class="card slides-card">
+            <h3>Slides</h3>
+            <div id="add-section-top" data-video-id="{{ video_id }}" style="margin-bottom:12px;"></div>
+            <div id="slides-list" class="list-group mt-3">
+                {% for slide in slides %}
+                {% set _imgname = slide.image_path.split('/')[-1] %}
+                <div id="slide-wrapper-{{ slide.id }}" class="list-group-item p-0">
+                    {% if slide.section_id %}
+                        {% for s in sections %}
+                                {% if s.id == slide.section_id %}
+                                <div class="section-header d-flex align-items-center justify-content-between">
+                                    <div>
+                                        {{ s.title }}
+                                        {% if s.create_new_page %}
+                                            <span class="page-break-indicator" title="This section starts on a new page in the PDF">📄</span>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <button type="button" class="btn btn-sm btn-danger" data-action="delete-section" data-section-id="{{ s.id }}" title="Delete section">🗑️</button>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    <div class="row slide-item {% if slide.is_locked %}locked{% endif %}" id="slide-{{ slide.id }}">
+                        <!-- Column 1: Add Section (4 stacked rows) -->
+                        <div class="col-md-1 col-2 d-flex flex-column p-2 min-h-0">
+                            <div class="row-line line-1 d-flex align-items-start justify-content-center">
+                                    <button type="button" class="btn btn-sm" data-action="add-section" data-slide-id="{{ slide.id }}">Add<br>Section</button>
+                                </div>
+                            <div class="row-line line-2 small text-center text-muted">&nbsp;</div>
+                            <div class="row-line line-3 flex-grow-1">&nbsp;</div>
+                            <div class="row-line line-4 small text-center">&nbsp;</div>
+                        </div>
+
+                        <!-- Column 2: Thumbnail (4 stacked rows) -->
+                        <div class="col-md-2 col-3 d-flex flex-column p-2 min-h-0" id="thumb-{{ slide.id }}" style="cursor:pointer;">
+                            <div class="row-line line-1 d-flex align-items-center justify-content-center">
+                                <img src="/output/{{ _imgname }}" class="thumb-img" onerror="this.style.display='none'">
+                            </div>
+                            <div class="row-line line-2 small text-center text-muted">#{{ slide.frame_number }} — {{ "%.2f"|format(slide.timestamp) }}s</div>
+                            <div class="row-line line-3 flex-grow-1" id="audio-container-{{ slide.id }}"></div>
+                            <div class="row-line line-4 small text-center slide-key">Slide ID: {{ slide.id }}</div>
+                        </div>
+
+                        <!-- Column 3: Original (read-only, 4 stacked rows) -->
+                        <div class="col-md-3 col-12 d-flex flex-column p-2 min-h-0">
+                            <div class="row-line line-1"><label class="fw-600">Original Text</label></div>
+                            <div class="row-line line-2 small text-muted">&nbsp;</div>
+                            <div class="row-line line-3 flex-grow-1 original-box">{{ slide.original_text or 'No text' }}</div>
+                            <div class="row-line line-4 small text-muted">&nbsp;</div>
+                        </div>
+
+                        <!-- Column 4: Final editable text and actions (4 stacked rows) -->
+                        <div class="col-md-6 col-12 d-flex flex-column p-2 min-h-0 final-text">
+                            <div class="row-line line-1 d-flex align-items-center">
+                                <label class="fw-600 me-2 mb-0">Final Text (Editable)</label>
+                                {% if slide.section_id %}
+                                    {% for s in sections %}
+                                        {% if s.id == slide.section_id %}
+                                            <span class="section-badge" id="slide-section-badge-{{ slide.id }}">{{ s.title }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="section-badge" id="slide-section-badge-{{ slide.id }}" style="display:none;"></span>
+                                {% endif %}
+                            </div>
+                            <div class="row-line line-2 small text-muted">&nbsp;</div>
+                            <div class="row-line line-3 flex-grow-1">
+                                <textarea class="text-area" id="text-{{ slide.id }}" {% if slide.is_locked %}readonly{% endif %}>{{ slide.final_text or slide.suggested_text or slide.original_text or '' }}</textarea>
+                            </div>
+                            <div class="row-line line-4 slide-actions-row">
+                                <div class="action-group reorder-group" style="display:flex; gap:6px; align-items:center;">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary reorder-btn" data-action="move-up" data-slide-id="{{ slide.id }}" title="Move slide up">
+                                        <i class="fas fa-arrow-up"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary reorder-btn" data-action="move-down" data-slide-id="{{ slide.id }}" title="Move slide down">
+                                        <i class="fas fa-arrow-down"></i>
+                                    </button>
+                                </div>
+
+                                <button type="button" class="btn lock-btn btn-{% if slide.is_locked %}danger{% else %}success{% endif %}" data-action="toggle-lock" data-slide-id="{{ slide.id }}">{% if slide.is_locked %}Unlock{% else %}Lock{% endif %}</button>
+
+                                <button type="button" class="btn btn-sm btn-secondary" title="Merge above into this slide" data-action="merge-above" data-slide-id="{{ slide.id }}">Merge ↑</button>
+                                <button type="button" class="btn btn-sm btn-secondary" title="Merge below into this slide" data-action="merge-below" data-slide-id="{{ slide.id }}">Merge ↓</button>
+
+                                <button type="button" class="btn save-btn btn-primary btn-sm" data-action="save" data-slide-id="{{ slide.id }}" {% if slide.is_locked %}disabled{% endif %}>Save</button>
+
+                                <button type="button" class="btn btn-danger btn-sm delete-btn" data-action="delete" data-slide-id="{{ slide.id }}">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+        </div>
+                {% endfor %}
+                {% if not slides %}
+                <div class="card">No slides available for the selected video. Choose another video from the dropdown.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Height-calculation JS removed: prefer CSS-only flexbox + Bootstrap solution.
+// The .min-h-0 and flex utility rules in base.html ensure the #slides-list
+// becomes the internal scroller without requiring runtime sizing.
+
+function saveText(slideId) {
+    const text = document.getElementById('text-' + slideId).value;
+    
+    fetch('/api/update_text/' + slideId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            final_text: text,
+            is_locked: false
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update textarea with confirmed saved text (use returned extract if available)
+            try {
+                const ta = document.getElementById('text-' + slideId);
+                if (data.extract && data.extract.final_text !== undefined) {
+                    ta.value = data.extract.final_text || '';
+                }
+                // transient saved badge next to the Save button
+                const saveBtn = ta.parentElement.querySelector('button');
+                const badgeId = 'saved-badge-' + slideId;
+                let badge = document.getElementById(badgeId);
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.id = badgeId;
+                    badge.style.marginLeft = '8px';
+                    badge.style.color = '#155724';
+                    badge.style.background = '#d4edda';
+                    badge.style.padding = '4px 8px';
+                    badge.style.borderRadius = '4px';
+                    badge.textContent = 'Saved';
+                    if (saveBtn && saveBtn.parentElement) saveBtn.parentElement.appendChild(badge);
+                }
+                setTimeout(()=>{ const b=document.getElementById(badgeId); if (b) b.remove(); }, 1800);
+            } catch (e) { /* ignore */ }
+        } else {
+            alert('Error saving text: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error);
+    });
+}
+
+function toggleLock(slideId) {
+    const text = document.getElementById('text-' + slideId).value;
+    const slideDiv = document.getElementById('slide-' + slideId);
+    const isCurrentlyLocked = slideDiv.classList.contains('locked');
+    
+    fetch('/api/update_text/' + slideId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            final_text: text,
+            is_locked: !isCurrentlyLocked
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error toggling lock: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error);
+    });
+}
+
+function mergeAbove(slideId) {
+    if (!confirm('Merge the slide above into this slide? This will delete the above slide.')) return;
+    fetch('/api/merge_above/' + slideId, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) return alert('Merge failed: ' + (data.message || 'unknown'));
+        // Update target textarea with merged text
+        const merged = data.merged ? data.merged.merged_text : (data.merged_text || '');
+        const ta = document.getElementById('text-' + slideId);
+        if (ta) {
+            ta.value = merged;
+            // Auto-save merged result
+            saveText(slideId);
+        }
+        // Remove deleted slide from DOM if present
+        const deletedId = data.merged ? data.merged.deleted_source_id : data.deleted_source_id;
+        if (deletedId) {
+            const el = document.getElementById('slide-' + deletedId);
+            if (el) el.remove();
+        }
+    })
+    .catch(e => alert('Error: ' + e));
+}
+
+function mergeBelow(slideId) {
+    if (!confirm('Merge the slide below into this slide? This will delete the below slide.')) return;
+    fetch('/api/merge_below/' + slideId, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) return alert('Merge failed: ' + (data.message || 'unknown'));
+        const merged = data.merged ? data.merged.merged_text : (data.merged_text || '');
+        const ta = document.getElementById('text-' + slideId);
+        if (ta) {
+            ta.value = merged;
+            saveText(slideId);
+        }
+        const deletedId = data.merged ? data.merged.deleted_source_id : data.deleted_source_id;
+        if (deletedId) {
+            const el = document.getElementById('slide-' + deletedId);
+            if (el) el.remove();
+        }
+    })
+    .catch(e => alert('Error: ' + e));
+}
+
+function createSection() {
+    const title = prompt('Enter section title:');
+    if (title) {
+        const createNewPage = confirm('Should this section start on a new page in the PDF?');
+        fetch('/api/create_section/{{ video_id }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ title: title, create_new_page: createNewPage })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error creating section: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+        });
+    }
+}
+
+function deleteSection(sectionId) {
+    if (!confirm('Are you sure you want to delete this section? This will remove the section but slides will remain.')) {
+        return;
+    }
+    
+    fetch('/api/delete_section/' + sectionId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error deleting section: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error);
+    });
+}
+
+function reorderSlide(slideId, direction) {
+    fetch('/api/reorder_slide/' + slideId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            direction: direction
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload the page to show the new order
+            location.reload();
+        } else {
+            alert('Failed to reorder slide: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('Error reordering slide: ' + error);
+    });
+}
+
+function assignToSection(slideId, sectionId) {
+    if (!sectionId) return;
+    
+    fetch('/api/assign_to_section/' + slideId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ section_id: sectionId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Slide assigned to section!');
+        } else {
+            alert('Error assigning slide: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error);
+    });
+}
+
+function openSlide(slideId) {
+    // Scroll to and highlight slide in editor area
+    const el = document.getElementById('slide-' + slideId);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.boxShadow = '0 0 0 3px rgba(52,152,219,0.25)';
+        setTimeout(()=> el.style.boxShadow = '', 2000);
+    } else {
+        // If the slide isn't loaded in editor area, try to navigate to edit view for that video
+        alert('Slide not loaded in editor area. Select the corresponding video from the dropdown to view slides.');
+    }
+}
+
+function onVideoChange() {
+    const sel = document.getElementById('video-select');
+    const vid = sel.value;
+    if (!vid) return;
+    window.location.href = '/video/' + vid;
+}
+
+function saveDocument() {
+    const sel = document.getElementById('video-select');
+    const vid = sel.value;
+    if (!vid) { alert('Please select a video before saving the document.'); return; }
+    const title = document.getElementById('document-title').value;
+    const summary = document.getElementById('document-summary').value;
+    fetch('/api/update_document/' + vid, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title, summary: summary })
+    })
+    .then(r=>r.json())
+    .then(data=>{
+        if (data.success) { alert('Document saved.'); } else { alert('Error: ' + data.message); }
+    })
+    .catch(e=> alert('Error: ' + e));
+}
+
+function exportPdf() {
+    const sel = document.getElementById('video-select');
+    const vid = sel.value;
+    if (!vid) { alert('Select a video to export.'); return; }
+    window.location.href = '/export/' + vid;
+}
+
+function showAddSectionForm(e, slideId) {
+    // stop event from bubbling (button click shouldn't open modal)
+    try { if (e && e.stopPropagation) e.stopPropagation(); } catch (err) {}
+    // Render form at the global add-section-top container so it's visible above slides
+    const top = document.getElementById('add-section-top');
+    if (!top) return;
+
+    // Pull current final text (if present) to show as reference
+    let finalText = '';
+    try {
+        const t = document.getElementById('text-' + slideId);
+        if (t) finalText = t.value || t.textContent || '';
+    } catch (e) {
+        finalText = '';
+    }
+
+        top.innerHTML = `
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-weight:600;">New Section Name</label>
+                        <input type="text" id="new-section-name-${slideId}" placeholder="Section name" style="padding:6px;">
+                        <label><input type="checkbox" id="new-section-newpage-${slideId}"> Create new page</label>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+                        <button class="btn" id="save-section-${slideId}" disabled data-action="save-new-section" data-slide-id="${slideId}">Save</button>
+                        <button class="btn" data-action="cancel-add-section" data-slide-id="${slideId}">Cancel</button>
+                    </div>
+                </div>
+        `;
+
+    const nameInput = document.getElementById(`new-section-name-${slideId}`);
+    const saveBtn = document.getElementById(`save-section-${slideId}`);
+    if (nameInput && saveBtn) {
+        nameInput.addEventListener('input', function() {
+            saveBtn.disabled = !this.value.trim();
+        });
+    }
+}
+
+// Delegated event handlers for buttons and thumbnail previews to avoid inline onclick attributes
+document.addEventListener('click', function(evt) {
+    try {
+        const target = evt.target;
+        // Walk up to find an element with data-action
+        let el = target;
+        while (el && el !== document.body) {
+            if (el.dataset && el.dataset.action) break;
+            el = el.parentElement;
+        }
+
+        if (el && el.dataset && el.dataset.action) {
+            const action = el.dataset.action;
+            const slideId = el.dataset.slideId ? parseInt(el.dataset.slideId, 10) : null;
+            evt.stopPropagation();
+            // Core slide actions
+            if (action === 'save' && slideId) {
+                saveText(slideId);
+                return;
+            }
+            if (action === 'delete' && slideId) {
+                deleteSlide(slideId);
+                return;
+            }
+            if (action === 'toggle-lock' && slideId) {
+                toggleLock(slideId);
+                return;
+            }
+            if ((action === 'add-section' || action === 'show-add-section-form') && slideId) {
+                showAddSectionForm(evt, slideId);
+                return;
+            }
+            if (action === 'move-up' && slideId) {
+                reorderSlide(slideId, 'up');
+                return;
+            }
+            if (action === 'move-down' && slideId) {
+                reorderSlide(slideId, 'down');
+                return;
+            }
+            if (action === 'merge-above' && slideId) {
+                mergeAbove(slideId);
+                return;
+            }
+            if (action === 'merge-below' && slideId) {
+                mergeBelow(slideId);
+                return;
+            }
+
+            // Page-level actions
+            if (action === 'add-slide-top') {
+                addSlideTop();
+                return;
+            }
+            if (action === 'save-document') {
+                saveDocument();
+                return;
+            }
+            if (action === 'delete-document') {
+                // Confirm and perform document deletion (video + slides + files)
+                const sel = document.getElementById('video-select');
+                const selVal = sel && sel.value ? sel.value : null;
+                // Determine video id: prefer delete button's data-video-id, then select value
+                const deleteBtn = document.querySelector('[data-action="delete-document"]');
+                let btnVid = null;
+                try { btnVid = deleteBtn && deleteBtn.dataset && deleteBtn.dataset.videoId ? deleteBtn.dataset.videoId : null; } catch (e) { btnVid = null; }
+                const vid = btnVid || selVal;
+                if (!vid) { alert('Select a video to delete.'); return; }
+                if (!confirm('Delete this document and all associated slides, audio and image files? This action cannot be undone.')) return;
+                fetch('/api/delete_video/' + vid, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d && d.success) {
+                            alert('Document deleted. Returning to document list.');
+                            window.location.href = '/document-editing';
+                        } else {
+                            alert('Failed to delete document: ' + (d && d.message));
+                        }
+                    })
+                    .catch(e => alert('Error deleting document: ' + e));
+                return;
+            }
+            if (action === 'export-pdf') {
+                // anchor-like action
+                exportPdf();
+                return;
+            }
+            if (action === 'close-modal') {
+                closeModal();
+                return;
+            }
+
+            // Section-related actions
+            if (action === 'delete-section') {
+                const sectionId = el.dataset.sectionId ? parseInt(el.dataset.sectionId, 10) : null;
+                if (sectionId) deleteSection(sectionId);
+                return;
+            }
+
+            if (action === 'save-new-section') {
+                // slideId comes from data-slide-id
+                if (slideId) saveNewSection(slideId);
+                return;
+            }
+
+            if (action === 'cancel-add-section') {
+                if (slideId) cancelAddSection(slideId);
+                else cancelAddSection();
+                return;
+            }
+        }
+
+        // Thumbnail preview handling - but skip if click came from audio controls
+        el = target;
+        let isFromAudioControl = false;
+        while (el && el !== document.body) {
+            // Check if this element or any parent is an audio control
+            if (el.tagName === 'AUDIO' || 
+                el.tagName === 'INPUT' || 
+                el.tagName === 'BUTTON' ||
+                el.classList?.contains('audio-controls') ||
+                el.id?.startsWith('audio-container-')) {
+                isFromAudioControl = true;
+                break;
+            }
+            el = el.parentElement;
+        }
+        
+        if (!isFromAudioControl) {
+            el = target;
+            while (el && el !== document.body) {
+                if (el.dataset && el.dataset.previewUrl) break;
+                el = el.parentElement;
+            }
+            if (el && el.dataset && el.dataset.previewUrl) {
+                evt.stopPropagation();
+                openModal(el.dataset.previewUrl);
+                return;
+            }
+        }
+    } catch (err) {
+        // swallow any errors to avoid breaking page
+        console.error('Delegated handler error', err);
+    }
+}, true);
+
+function cancelAddSection(slideId) {
+    const top = document.getElementById('add-section-top');
+    if (!top) return;
+    top.innerHTML = '';
+}
+
+function saveNewSection(slideId) {
+    const nameEl = document.getElementById(`new-section-name-${slideId}`);
+    const newpageEl = document.getElementById(`new-section-newpage-${slideId}`);
+    if (!nameEl) return;
+    const title = nameEl.value.trim();
+    const create_new_page = newpageEl && newpageEl.checked;
+    if (!title) return;
+
+    // determine video id from the top container's data attribute
+    const topEl = document.getElementById('add-section-top');
+    const vid = topEl && topEl.dataset && topEl.dataset.videoId ? topEl.dataset.videoId : null;
+    if (!vid) { alert('No video selected for creating section.'); return; }
+
+    fetch(`/api/create_section/${vid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title, create_new_page: create_new_page })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.section_id) {
+            // assign this slide to the newly created section
+            fetch(`/api/assign_to_section/${slideId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ section_id: data.section_id })
+            })
+            .then(r2 => r2.json())
+            .then(d2 => {
+                if (d2.success) {
+                    // Insert section header above the slide wrapper
+                    try {
+                        const wrapper = document.getElementById('slide-wrapper-' + slideId);
+                        if (wrapper) {
+                            const header = document.createElement('div');
+                            header.className = 'section-header';
+                            header.textContent = title;
+                            if (create_new_page) {
+                                const indicator = document.createElement('span');
+                                indicator.className = 'page-break-indicator';
+                                indicator.title = 'This section starts on a new page in the PDF';
+                                indicator.textContent = '📄';
+                                header.appendChild(indicator);
+                            }
+                            wrapper.parentNode.insertBefore(header, wrapper);
+                        }
+
+                        const badge = document.getElementById('slide-section-badge-' + slideId);
+                        if (badge) {
+                            badge.textContent = title;
+                            badge.style.display = '';
+                        }
+                    } catch (domErr) {
+                        // If DOM update fails, fallback to reload
+                        location.reload();
+                    }
+
+                    // Clear the top form
+                    cancelAddSection(slideId);
+                } else {
+                    alert('Failed to assign section: ' + d2.message);
+                }
+            });
+        } else {
+            alert('Failed to create section: ' + (data.message || 'unknown'));
+        }
+    })
+    .catch(err => alert('Error: ' + err));
+}
+
+function openModal(src) {
+    const modal = document.getElementById('slide-modal');
+    const img = document.getElementById('slide-modal-img');
+    if (!modal || !img) return;
+    img.src = src;
+    modal.style.display = 'flex';
+}
+
+// Initialize audio by querying server for slide wav URL and creating a play button when present
+function initSlideAudio(videoId) {
+    const slides = document.querySelectorAll('[id^="slide-wrapper-"]');
+    slides.forEach(wrapper => {
+        const id = wrapper.id.replace('slide-wrapper-','');
+        const container = document.getElementById('audio-container-' + id);
+        if (!container) return;
+        fetch(`/api/slide_wav/${id}`)
+            .then(r => r.json())
+            .then(d => {
+                // Remove any existing audio controls we may have added previously
+                while (container.firstChild) container.removeChild(container.firstChild);
+                if (d && d.success && d.wav_url) {
+                    // Create custom audio player with progress bar below controls
+                    const audio = document.createElement('audio');
+                    audio.src = d.wav_url;
+                    audio.style.display = 'none'; // Hide the actual audio element
+                    container.appendChild(audio);
+
+                    // Create custom controls container
+                    const controlsContainer = document.createElement('div');
+                    controlsContainer.className = 'audio-controls';  // Add class for event detection
+                    controlsContainer.style.display = 'flex';
+                    controlsContainer.style.flexDirection = 'column';
+                    controlsContainer.style.gap = '4px';  // Reduced from 8px
+                    controlsContainer.style.width = '200px';  // Reduced from 240px
+
+                    // Top row: play/pause, time, volume
+                    const controlsRow = document.createElement('div');
+                    controlsRow.style.display = 'flex';
+                    controlsRow.style.alignItems = 'center';
+                    controlsRow.style.gap = '6px';  // Reduced from 8px
+
+                    // Play/pause button
+                    const playBtn = document.createElement('button');
+                    playBtn.innerHTML = '▶️';
+                    playBtn.style.border = 'none';
+                    playBtn.style.background = 'none';
+                    playBtn.style.cursor = 'pointer';
+                    playBtn.style.fontSize = '12px';  // Reduced from 14px
+                    playBtn.style.padding = '2px';
+                    playBtn.title = 'Play/Pause';
+
+                    // Time display
+                    const timeDisplay = document.createElement('span');
+                    timeDisplay.textContent = '0:00 / 0:00';
+                    timeDisplay.style.fontSize = '11px';  // Reduced from 12px
+                    timeDisplay.style.fontFamily = 'monospace';
+                    timeDisplay.style.minWidth = '65px';  // Reduced from 80px
+
+                    // Volume control
+                    const volumeControl = document.createElement('input');
+                    volumeControl.type = 'range';
+                    volumeControl.min = '0';
+                    volumeControl.max = '1';
+                    volumeControl.step = '0.1';
+                    volumeControl.value = '1';
+                    volumeControl.style.width = '50px';  // Reduced from 60px
+                    volumeControl.title = 'Volume';
+
+                    controlsRow.appendChild(playBtn);
+                    controlsRow.appendChild(timeDisplay);
+                    controlsRow.appendChild(volumeControl);
+
+                    // Bottom row: progress bar
+                    const progressRow = document.createElement('div');
+                    progressRow.style.display = 'flex';
+                    progressRow.style.alignItems = 'center';
+                    progressRow.style.gap = '4px';  // Reduced from 8px
+
+                    const progressBar = document.createElement('input');
+                    progressBar.type = 'range';
+                    progressBar.min = '0';
+                    progressBar.max = '100';
+                    progressBar.value = '0';
+                    progressBar.style.width = '180px';  // Reduced from 200px to fit smaller container
+                    progressBar.style.flex = '1';
+                    progressBar.title = 'Seek to position';
+
+                    progressRow.appendChild(progressBar);
+
+                    // Add both rows to container
+                    controlsContainer.appendChild(controlsRow);
+                    controlsContainer.appendChild(progressRow);
+                    container.appendChild(controlsContainer);
+
+                    // Audio event handlers
+                    let isPlaying = false;
+
+                    function updateTimeDisplay() {
+                        const current = audio.currentTime || 0;
+                        const duration = audio.duration || 0;
+                        const currentStr = formatTime(current);
+                        const durationStr = formatTime(duration);
+                        timeDisplay.textContent = `${currentStr} / ${durationStr}`;
+                        progressBar.value = duration > 0 ? (current / duration) * 100 : 0;
+                    }
+
+                    function formatTime(seconds) {
+                        const mins = Math.floor(seconds / 60);
+                        const secs = Math.floor(seconds % 60);
+                        return `${mins}:${secs.toString().padStart(2, '0')}`;
+                    }
+
+                    audio.addEventListener('loadedmetadata', updateTimeDisplay);
+                    audio.addEventListener('timeupdate', updateTimeDisplay);
+                    audio.addEventListener('ended', () => {
+                        isPlaying = false;
+                        playBtn.innerHTML = '▶️';
+                    });
+
+                    // Play/pause button
+                    playBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (isPlaying) {
+                            audio.pause();
+                            playBtn.innerHTML = '▶️';
+                        } else {
+                            audio.play();
+                            playBtn.innerHTML = '⏸️';
+                        }
+                        isPlaying = !isPlaying;
+                    });
+
+                    // Volume control
+                    volumeControl.addEventListener('input', (e) => {
+                        e.stopPropagation();
+                        audio.volume = parseFloat(volumeControl.value);
+                    });
+
+                    // Progress bar seeking
+                    progressBar.addEventListener('input', (e) => {
+                        e.stopPropagation();
+                        const seekTime = (parseFloat(progressBar.value) / 100) * audio.duration;
+                        audio.currentTime = seekTime;
+                    });
+
+                    // Prevent container clicks from bubbling
+                    controlsContainer.addEventListener('click', (e) => e.stopPropagation());
+                    // Add overlay badge to thumbnail
+                    try {
+                        const thumb = document.getElementById('thumb-' + id);
+                        if (thumb) {
+                            // remove existing badge if any
+                            const existing = thumb.querySelector('.audio-badge');
+                            if (existing) existing.remove();
+                            const badge = document.createElement('div');
+                            badge.className = 'audio-badge';
+                            badge.textContent = '🔊';
+                            // prevent badge clicks from bubbling
+                            badge.addEventListener('click', (e) => e.stopPropagation());
+                            thumb.appendChild(badge);
+                        }
+                    } catch (err) { console.warn('Failed to add audio badge', err); }
+                } else {
+                    // show a muted indicator so that the user knows there's no audio for this slide
+                    const span = document.createElement('span');
+                    span.style.color = '#777';
+                    span.style.fontSize = '12px';
+                    span.textContent = 'No audio';
+                    container.appendChild(span);
+                    // Remove overlay badge if present
+                    try {
+                        const thumb = document.getElementById('thumb-' + id);
+                        if (thumb) {
+                            const existing = thumb.querySelector('.audio-badge');
+                            if (existing) existing.remove();
+                        }
+                    } catch (err) { }
+                }
+            })
+            .catch(()=>{});
+    });
+}
+
+// Initialize audio once the page is ready
+document.addEventListener('DOMContentLoaded', function(){
+    // Initialize audio controls for each slide regardless of the video selector state.
+    initSlideAudio();
+    // Ensure delete-document button visibility is in sync with the selected video
+    try {
+        const deleteBtn = document.querySelector('[data-action="delete-document"]');
+        const sel = document.getElementById('video-select');
+        function updateDeleteBtn() {
+            if (!deleteBtn) return;
+            const vid = sel && sel.value ? sel.value : (deleteBtn.dataset && deleteBtn.dataset.videoId ? deleteBtn.dataset.videoId : null);
+            if (vid) {
+                deleteBtn.style.display = '';
+                deleteBtn.dataset.videoId = vid;
+            } else {
+                deleteBtn.style.display = 'none';
+                deleteBtn.dataset.videoId = '';
+            }
+        }
+        if (sel) sel.addEventListener('change', updateDeleteBtn);
+        updateDeleteBtn();
+    } catch (e) { console.warn('Failed to initialize delete button UI sync', e); }
+});
+
+// Diagnostic helpers were removed to avoid interfering with normal DOM operations.
+// If you need to re-enable lightweight diagnostics, uncomment and adapt the
+// `enableLightDiagnostics()` function below. Keep such diagnostics off during
+// normal usage to prevent unintended side effects.
+
+/*
+function enableLightDiagnostics() {
+    const container = document.getElementById('slides-list');
+    if (!container) return;
+    const obs = new MutationObserver((mutations)=>{
+        console.groupCollapsed('slides-list mutation (light)');
+        console.log(new Date().toISOString());
+        mutations.forEach(m => console.log(m.type, m));
+        console.groupEnd();
+    });
+    obs.observe(container, { attributes: true, childList: true, subtree: false });
+    window._lightSlidesObserver = obs;
+}
+*/
+
+    // Click-capture logger removed (noisy for typing). Re-enable only when actively debugging.
+
+function deleteSlide(slideId) {
+    console.log('Deleting slide:', slideId);
+    // Delete immediately without confirmation
+    fetch('/api/delete_slide/' + slideId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        console.log('Delete response:', data);
+        if (data.success) {
+            // Remove the slide from the DOM completely
+            const wrapperId = 'slide-wrapper-' + slideId;
+            console.log('Looking for wrapper with ID:', wrapperId);
+            const wrapper = document.getElementById(wrapperId);
+            console.log('Found wrapper element:', wrapper);
+            if (wrapper) {
+                console.log('Removing wrapper from DOM');
+                // First hide it
+                wrapper.style.display = 'none';
+                // Then remove it after a short delay
+                setTimeout(() => {
+                    wrapper.remove();
+                    console.log('Wrapper removed successfully');
+                }, 100);
+            } else {
+                console.error('Wrapper element not found!');
+            }
+        } else {
+            alert('Failed to delete slide: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(err => {
+        console.error('Error deleting slide:', err);
+        alert('Error deleting slide: ' + err);
+    });
+}
+
+function addSlideTop() {
+    const sel = document.getElementById('video-select');
+    const vid = sel && sel.value;
+    if (!vid) { alert('Select a video to add slide to.'); return; }
+    fetch('/api/add_slide/' + vid, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+        if (d && d.success && d.slide) {
+            // Create a minimal DOM block for the new slide and insert at top
+            const slide = d.slide;
+            const container = document.getElementById('slides-list');
+            if (!container) return;
+            const wrapper = document.createElement('div');
+            wrapper.id = 'slide-wrapper-' + slide.id;
+            wrapper.innerHTML = `
+                <div class="slide-item" id="slide-${slide.id}" style="display:flex; gap:12px; align-items:flex-start;">
+                    <div style="flex:0 0 40px;"><button class="btn" data-action="show-add-section-form" data-slide-id="${slide.id}">Add Section</button></div>
+                    <div id="thumb-${slide.id}" style="position:relative; flex:0 0 140px;"><img src="/${slide.image_path || ''}" style="width:120px; height:80px; object-fit:cover; border:1px solid #ddd; display:block;" onerror="this.style.display='none'"></div>
+                    <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-weight:600;">Original Text</label>
+                        <div class="slide-original" style="background:#f0f0f0; padding:10px; border-radius:4px;">No text</div>
+                    </div>
+                    <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-weight:600; margin-right:6px;">Final Text (Editable)</label>
+                        <textarea class="text-area" id="text-${slide.id}"></textarea>
+                        <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+                            <button type="button" data-action="toggle-lock" data-slide-id="${slide.id}" class="btn btn-success">Lock</button>
+                            <button type="button" data-action="save" data-slide-id="${slide.id}" class="btn">Save</button>
+                            <button type="button" data-action="delete" data-slide-id="${slide.id}" class="btn btn-danger">Delete</button>
+                        </div>
+                    </div>
+                </div>`;
+            container.insertBefore(wrapper, container.firstChild);
+            try { initSlideAudio(); } catch (e) {}
+        } else {
+            alert('Failed to add slide: ' + (d && d.message));
+        }
+    }).catch(err => alert('Error adding slide: ' + err));
+}
+
+function closeModal() {
+    const modal = document.getElementById('slide-modal');
+    const img = document.getElementById('slide-modal-img');
+    if (!modal || !img) return;
+    modal.style.display = 'none';
+    img.src = '';
+}
+</script>
 {% endblock %}

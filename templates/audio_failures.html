@@ -1,11 +1,38 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+
+{% block title %}Audio Extraction Failures{% endblock %}
+
 {% block content %}
-  <h2>Audio Failures</h2>
-  <ul>
-    {% for f in failures %}
-      <li><a href="{{ url_for('audio_failure_detail', failure_id=f.id) }}">{{ f.filename or f.id }}</a></li>
-    {% else %}
-      <li>No audio failures found.</li>
-    {% endfor %}
-  </ul>
+<div style="padding: clamp(15px, 4vw, 20px);">
+    <h2 style="margin-bottom: clamp(10px, 3vw, 15px); font-size: clamp(18px, 4vw, 24px);">Recent Audio Extraction Failures</h2>
+    <p style="margin-bottom: clamp(15px, 4vw, 20px); font-size: clamp(14px, 2.5vw, 16px);">This table lists recent extraction failures for debugging.</p>
+    
+    <!-- Mobile-friendly table wrapper -->
+    <div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+        <table style="width:100%; border-collapse: collapse; min-width: 600px; font-size: clamp(12px, 2vw, 14px);">
+            <thead>
+                <tr style="text-align:left; border-bottom: 1px solid #ddd;">
+                    <th style="padding: clamp(8px, 2vw, 12px);">Time</th>
+                    <th style="padding: clamp(8px, 2vw, 12px);">Video</th>
+                    <th style="padding: clamp(8px, 2vw, 12px);">Slide ID</th>
+                    <th style="padding: clamp(8px, 2vw, 12px);">Frames</th>
+                    <th style="padding: clamp(8px, 2vw, 12px);">Attempts</th>
+                    <th style="padding: clamp(8px, 2vw, 12px);">Error Message (truncated)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in failures %}
+                <tr style="border-bottom: 1px solid #f1f1f1;">
+                    <td style="padding: clamp(8px, 2vw, 12px);">{{ f['created_at'] }}</td>
+                    <td style="padding: clamp(8px, 2vw, 12px);">{{ f['filename'] or f['video_id'] }}</td>
+                    <td style="padding: clamp(8px, 2vw, 12px);">{{ f['slide_id'] }}</td>
+                    <td style="padding: clamp(8px, 2vw, 12px);">{{ f['start_frame'] }} → {{ f['end_frame'] }}</td>
+                    <td style="padding: clamp(8px, 2vw, 12px);">{{ f['attempts'] }}</td>
+                    <td style="padding: clamp(8px, 2vw, 12px); max-width: 60ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ f['error_message'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}

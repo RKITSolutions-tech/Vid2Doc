@@ -1,13 +1,141 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+
+{% block title %}System Settings{% endblock %}
+
+{% block extra_css %}
+<style>
+  .settings-card { 
+    display:flex; 
+    flex-direction:column; 
+    gap:clamp(10px, 3vw, 12px); 
+  }
+  .setting-row { 
+    display:flex; 
+    align-items:flex-start; 
+    gap:clamp(10px, 3vw, 12px); 
+    flex-wrap: wrap;
+  }
+  .setting-row label { 
+    font-weight:600; 
+    min-width: 120px;
+    font-size: clamp(14px, 2.5vw, 16px);
+  }
+
+  /* Mobile: Stack setting rows vertically */
+  @media (max-width: 768px) {
+    .setting-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .setting-row label {
+      min-width: auto;
+    }
+
+    .setting-row small {
+      margin-left: 0;
+      margin-top: 4px;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-  <h2>System Settings</h2>
-  <p>System utilities and maintenance actions.</p>
-  <div class="mb-3">
-    <form method="post" action="/admin/reset-db">
-      <button class="btn btn-warning">Reset Database</button>
-    </form>
-  </div>
-  <div>
-    <a class="btn btn-outline-secondary" href="/export/slides_csv">Export slides CSV</a>
-  </div>
+<div class="card settings-card">
+    <h2>System Settings</h2>
+
+    <div class="setting-row">
+        <label for="dark-mode-toggle">Dark Mode</label>
+        <input type="checkbox" id="dark-mode-toggle">
+        <small id="dark-mode-hint">Toggle site-wide dark mode (client-side only)</small>
+    </div>
+
+    <div class="setting-row">
+        <label>Orphan WAV files</label>
+        <button class="btn" id="list-orphans">List Orphans</button>
+        <button class="btn btn-danger" id="clear-orphans">Clear Orphans</button>
+        <span id="orphans-count" style="margin-left:8px;color:#555"></span>
+    </div>
+
+    <div class="setting-row">
+        <label>Reset Database</label>
+        <button class="btn btn-danger" id="reset-db">Reset DB (Clear all documents)</button>
+        <small style="color:#a00; margin-left:8px;">Destructive: removes slides, extracts, sections and videos. Files on disk not removed.</small>
+    </div>
+
+    <div class="setting-row">
+        <label>Other</label>
+        <button class="btn" id="reinit-db">Ensure DB Schema (init)</button>
+        <a href="/export/slides_csv" class="btn btn-primary" style="margin-left:8px;">Export Slides to CSV</a>
+        <small style="color:#080; margin-left:8px;">Download all slide data with text content for backup</small>
+    </div>
+
+    <div id="system-output" style="margin-top:12px; white-space:pre-wrap; font-family:monospace;"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function fetchJson(url, opts) {
+    const r = await fetch(url, opts);
+    const j = await r.json().catch(()=>({success:false,message:'Invalid JSON'}));
+    return { ok: r.ok, body: j };
+}
+
+document.getElementById('list-orphans').addEventListener('click', async function(){
+    const res = await fetchJson('/api/list_orphan_wavs');
+    if (res.ok && res.body && res.body.success) {
+        const list = res.body.files || [];
+        document.getElementById('system-output').textContent = 'Orphan WAVs:\n' + list.join('\n');
+        document.getElementById('orphans-count').textContent = list.length + ' orphans';
+    } else {
+        alert('Failed to list orphans: ' + (res.body.message || 'unknown'));
+    }
+});
+
+document.getElementById('clear-orphans').addEventListener('click', async function(){
+    if (!confirm('Delete all orphan WAV files returned by the server? This cannot be undone.')) return;
+    const res = await fetchJson('/api/clear_orphan_wavs', { method: 'POST' });
+    if (res.ok && res.body && res.body.success) {
+        document.getElementById('system-output').textContent = 'Deleted files:\n' + (res.body.deleted || []).join('\n');
+        document.getElementById('orphans-count').textContent = (res.body.deleted || []).length + ' deleted';
+    } else {
+        alert('Failed to clear orphans: ' + (res.body.message || 'unknown'));
+    }
+});
+
+document.getElementById('reset-db').addEventListener('click', async function(){
+    const confirmText = prompt('Type RESET to confirm full database reset (this is destructive):');
+    if (confirmText !== 'RESET') { alert('Reset cancelled'); return; }
+    const res = await fetchJson('/api/reset_db', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ confirm: true }) });
+    if (res.ok && res.body && res.body.success) {
+        document.getElementById('system-output').textContent = 'DB Reset: ' + (res.body.message || 'done');
+    } else {
+        alert('Failed to reset DB: ' + (res.body.message || 'unknown'));
+    }
+});
+
+document.getElementById('reinit-db').addEventListener('click', async function(){
+    const res = await fetchJson('/api/reinit_db', { method: 'POST' });
+    if (res.ok && res.body && res.body.success) {
+        document.getElementById('system-output').textContent = 'DB reinitialized: ' + (res.body.message || 'OK');
+    } else {
+        alert('Failed to init DB: ' + (res.body.message || 'unknown'));
+    }
+});
+
+// Dark mode toggle (client-side only)
+const darkToggle = document.getElementById('dark-mode-toggle');
+darkToggle.addEventListener('change', function(){
+    if (this.checked) {
+        document.documentElement.style.setProperty('--bg-color', '#121212');
+        document.body.style.backgroundColor = '#121212';
+        document.body.style.color = '#e6e6e6';
+    } else {
+        document.body.style.backgroundColor = '';
+        document.body.style.color = '';
+    }
+});
+</script>
 {% endblock %}

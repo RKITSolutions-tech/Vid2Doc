@@ -1,41 +1,270 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Video Documentation</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  </head>
-  <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="{{ url_for('index') }}">VideoDoc</a>
-        <div class="collapse navbar-collapse">
-          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Home</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('document_editing') }}">Document Editing</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('review_video') }}">Review</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('system_settings') }}">System</a></li>
-          </ul>
-          {% if nav_edit_url %}
-            <a class="btn btn-outline-primary" href="{{ nav_edit_url }}">Edit latest</a>
-          {% endif %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Video Documentation{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Bootstrap 5 (SRI removed for dev) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.55;
+            color: #333;
+            background-color: #f5f5f5;
+            font-size: clamp(14px, 2.5vw, 16px);
+        }
+        .container {
+            /* slightly wider max-width to give more horizontal room for text columns */
+            max-width: min(1600px, 98vw);
+            margin: 0 auto;
+            /* reduce default padding slightly to increase usable width */
+            padding: clamp(8px, 2vw, 20px);
+        }
+
+        /* Make full-width content containers available for pages that need more horizontal room
+           (we use .container-fluid.content-scrollable for the editor/upload screens). */
+        .container-fluid {
+            width: 100%;
+            padding: clamp(8px, 2vw, 20px);
+        }
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: clamp(8px, 2vw, 12px) 0;
+            margin-bottom: clamp(12px, 3vw, 16px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        }
+        /* full-bleed header background; inner container aligns content with page */
+        .header-fluid {
+            width: 100%;
+            background: inherit; /* inherit header background */
+        }
+        .header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            /* slightly narrower than main content for readability */
+            padding: 0 clamp(10px, 3vw, 20px);
+            /* proportion-based width: 75% on large screens, full width on small screens */
+            width: 100%;
+            max-width: none;
+            margin: 0 auto;
+        }
+
+        @media (min-width: 1200px) {
+            .header-inner {
+                width: 95%;
+                /* keep centered */
+                margin-left: auto;
+                margin-right: auto;
+            }
+        }
+        header h1 {
+            font-size: clamp(18px, 4vw, 20px);
+            font-weight: 600;
+        }
+        nav {
+            display: flex;
+            gap: clamp(8px, 2vw, 12px);
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: clamp(4px, 1.5vw, 5px) clamp(8px, 2.5vw, 10px);
+            border-radius: 999px;
+            font-size: clamp(12px, 2.5vw, 13px);
+            transition: background-color 0.2s ease;
+        }
+        nav a:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Mobile Navigation */
+        .nav-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: white;
+            font-size: clamp(20px, 5vw, 24px);
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .nav-menu {
+            display: flex;
+        }
+
+        /* Mobile Styles */
+        @media (max-width: 768px) {
+            .nav-toggle {
+                display: block;
+            }
+
+            .nav-menu {
+                position: fixed;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background-color: #2c3e50;
+                flex-direction: column;
+                padding: 20px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                transform: translateY(-100%);
+                opacity: 0;
+                visibility: hidden;
+                transition: all 0.3s ease;
+                z-index: 1000;
+            }
+
+            .nav-menu.active {
+                transform: translateY(0);
+                opacity: 1;
+                visibility: visible;
+            }
+
+            .nav-menu a {
+                padding: 12px 0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                font-size: 16px;
+            }
+
+            .nav-menu a:last-child {
+                border-bottom: none;
+            }
+        }
+
+        .flash-messages {
+            margin-bottom: clamp(15px, 4vw, 20px);
+        }
+        .alert {
+            padding: clamp(10px, 3vw, 12px) clamp(15px, 4vw, 20px);
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .card {
+            background: white;
+            padding: clamp(20px, 5vw, 30px);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button, .btn {
+            background-color: #3498db;
+            color: white;
+            padding: clamp(8px, 2.5vw, 10px) clamp(15px, 4vw, 20px);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: clamp(13px, 2.5vw, 14px);
+            text-decoration: none;
+            display: inline-block;
+            min-height: 44px; /* Touch target size */
+        }
+        /* Make main content take full viewport height and allow internal scrolling
+           so bottom controls stay in view on smaller screens. */
+        main.app-content {
+            min-height: calc(100vh - 120px);
+            display: flex;
+            flex-direction: column;
+        }
+        .content-scrollable {
+            overflow: auto;
+            flex: 1 1 auto;
+            padding-bottom: 24px;
+        }
+        button:hover, .btn:hover {
+            background-color: #2980b9;
+        }
+        .btn-success { background-color: #27ae60; }
+        .btn-success:hover { background-color: #229954; }
+        .btn-danger { background-color: #e74c3c; }
+        .btn-danger:hover { background-color: #c0392b; }
+            /* Utility: allow flex children to shrink and scroll (wins when added after Bootstrap) */
+            .min-h-0 { min-height: 0 !important; }
+
+            /* Make the whole page a flex column that exactly fits the viewport */
+            html, body { height: 100%; }
+            body { min-height: 100dvh; display: flex; flex-direction: column; }
+
+            /* Main area: fill leftover space, but allow inner scroll areas */
+            main.app-content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+            /* Container that holds scrollable content */
+        .container.content-scrollable, .container-fluid.content-scrollable { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+            /* Card holds the list: fill space, allow shrinking */
+            .slides-card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+            /* The actual scroller */
+            #slides-list { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+        </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="d-flex flex-column">
+    <header>
+        <div class="container-fluid header-fluid">
+            <div class="container header-inner">
+                <h1>Video Documentation System</h1>
+                <button class="nav-toggle" data-action="toggle-nav" aria-label="Toggle navigation">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <nav class="nav-menu" id="navMenu">
+                    <a href="{{ url_for('upload_video') }}">Upload Video</a>
+                    <a href="{{ url_for('document_editing') }}">Document Editing</a>
+                    <a href="{{ url_for('audio_failures_page') }}">Audio Failures</a>
+                    <a href="{{ url_for('system_settings') }}">System</a>
+                </nav>
+            </div>
         </div>
-      </div>
-    </nav>
-
-    <main class="container">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, message in messages %}
-            <div class="alert alert-{{ 'danger' if category == 'error' else category }}">{{ message }}</div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
-
-      {% block content %}{% endblock %}
+    </header>
+    
+    <main class="app-content">
+        <div class="container-fluid content-scrollable">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+        </div>
     </main>
+    <script>
+        function toggleNav() {
+            const navMenu = document.getElementById('navMenu');
+            navMenu.classList.toggle('active');
+        }
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  </body>
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const navMenu = document.getElementById('navMenu');
+            const navToggle = document.querySelector('.nav-toggle');
+            if (!navMenu.contains(event.target) && !navToggle.contains(event.target)) {
+                navMenu.classList.remove('active');
+            }
+        });
+    </script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
 </html>
