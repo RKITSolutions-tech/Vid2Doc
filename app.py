@@ -95,40 +95,6 @@ def system_settings():
     return render_template('system.html', nav_edit_url=_resolve_nav_edit_url())
 
 
-@app.route('/api/health')
-def api_health():
-    """Return JSON status of key runtime dependencies and system tools."""
-    import shutil
-    status = {}
-
-    # System tools
-    status['ffprobe'] = bool(shutil.which('ffprobe'))
-    status['ffmpeg'] = bool(shutil.which('ffmpeg'))
-
-    # Python packages
-    pkgs = {}
-    try:
-        import cv2
-        pkgs['opencv'] = True
-    except Exception:
-        pkgs['opencv'] = False
-    try:
-        import sqlalchemy
-        pkgs['sqlalchemy'] = True
-    except Exception:
-        pkgs['sqlalchemy'] = False
-    try:
-        import reportlab
-        pkgs['reportlab'] = True
-    except Exception:
-        pkgs['reportlab'] = False
-
-    status['packages'] = pkgs
-
-    # Overall OK if required pieces are present
-    status['ok'] = status['ffprobe'] and pkgs['sqlalchemy'] and pkgs['reportlab']
-
-    return jsonify(status)
 
 
 @app.route('/export/slides_csv')
@@ -1377,8 +1343,41 @@ def wav_file(filename):
 
 
 @app.route('/api/_health')
+@app.route('/api/health')
 def api_health():
-    return jsonify({'success': True, 'status': 'ok', 'time': time.time()})
+    """Return JSON status of key runtime dependencies and system tools."""
+    import shutil
+    status = {}
+
+    # System tools
+    status['ffprobe'] = bool(shutil.which('ffprobe'))
+    status['ffmpeg'] = bool(shutil.which('ffmpeg'))
+
+    # Python packages
+    pkgs = {}
+    try:
+        import cv2
+        pkgs['opencv'] = True
+    except Exception:
+        pkgs['opencv'] = False
+    try:
+        import sqlalchemy
+        pkgs['sqlalchemy'] = True
+    except Exception:
+        pkgs['sqlalchemy'] = False
+    try:
+        import reportlab
+        pkgs['reportlab'] = True
+    except Exception:
+        pkgs['reportlab'] = False
+
+    status['packages'] = pkgs
+
+    # Overall OK if required pieces are present
+    status['ok'] = status['ffprobe'] and pkgs['sqlalchemy'] and pkgs['reportlab']
+    status['time'] = time.time()
+
+    return jsonify(status)
 
 
 @app.route('/api/debug_job/<job_id>')
