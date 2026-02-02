@@ -16,6 +16,7 @@ from flask import (
     Response,
 )
 import os
+import shutil
 from werkzeug.utils import secure_filename
 import logging
 import threading
@@ -87,6 +88,49 @@ init_db()
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
 os.makedirs('wav', exist_ok=True)
+
+
+def _clear_directory_contents(directory, keep_names=None):
+    """Remove all files and subdirectories inside `directory`, excluding names in `keep_names`.
+
+    This is safe to call repeatedly. It will log actions and swallow errors to avoid
+    interrupting application startup.
+    """
+    if not directory:
+        return
+    keep = set(keep_names or [])
+    try:
+        for entry in os.listdir(directory):
+            if entry in keep:
+                continue
+            path = os.path.join(directory, entry)
+            try:
+                if os.path.isdir(path) and not os.path.islink(path):
+                    shutil.rmtree(path)
+                    logging.info("Removed directory from uploads: %s", path)
+                else:
+                    os.remove(path)
+                    logging.info("Removed file from uploads: %s", path)
+            except Exception:
+                logging.exception("Failed to remove %s", path)
+    except Exception:
+        logging.exception("Failed to list directory for cleanup: %s", directory)
+
+
+# Optionally clear uploads directory on server start to avoid filling disk.
+# Controlled by environment variable `VID2DOC_CLEAR_UPLOADS_ON_START` (default: true).
+# Also skip when running under pytest (PYTEST_CURRENT_TEST is set by pytest) to avoid
+# interfering with test fixtures.
+try:
+    clear_on_start = os.environ.get('VID2DOC_CLEAR_UPLOADS_ON_START', 'true').lower() in ('1', 'true', 'yes')
+except Exception:
+    clear_on_start = True
+
+if clear_on_start and 'PYTEST_CURRENT_TEST' not in os.environ:
+    try:
+        _clear_directory_contents(app.config['UPLOAD_FOLDER'], keep_names={'.gitkeep', 'README.md'})
+    except Exception:
+        logging.exception('Failed to clear uploads directory on startup')
 
 
 @app.route('/system')
@@ -952,11 +996,20 @@ def _run_processing_job(job_id):
                 # raw diagnostics are stored on `job['gpu_diagnostics']` for UI
                 # consumption.
             elif event_type == 'text_sample':
-                sample = event.get('sample') or '[No text captured]'
+                raw_sample = event.get('sample')
+                display_sample = raw_sample or '[No text captured]'
                 source_frame = event.get('source_frame')
                 source_slide_id = event.get('source_slide_id')
                 if source_frame is not None:
-                    _append_log(job, f"Captured text sample : {sample} (from frame {source_frame})")
+                    _append_log(job, f"Captured text sample : {display_sample} (from frame {source_frame})")
+                    # Increment job-level counters for visibility
+                    job['sample_count'] = job.get('sample_count', 0) + 1
+
+                    # If the sample is empty, record and log it explicitly to aid debugging
+                    if raw_sample is None or not str(raw_sample).strip():
+                        job['empty_samples'] = job.get('empty_samples', 0) + 1
+                        _append_log(job, f"Received empty text sample for frame {source_frame}")
+
                     # Also surface the sample into the extracts panel for immediate UI visibility
                     try:
                         ts = None
@@ -965,50 +1018,69 @@ def _run_processing_job(job_id):
                         _add_extract(job, {
                             'frame': source_frame,
                             'timestamp': ts,
-                            'text': sample,
+                            'text': raw_sample if raw_sample is not None else display_sample,
                         })
+
                         # Best-effort persistence: try to map frame -> slide and update DB
                         try:
-                            from database import get_slide_by_frame, get_text_extract_by_slide, update_text_extract_original_suggested, add_text_extract
+                            from database import get_slide_by_frame, get_text_extract_by_slide, update_text_extract_original_suggested, add_text_extract, add_slide_minimal
 
                             # If the job has a video_id, try to find slide by frame
                             vid = job.get('video_id')
                             slide = None
                             if vid:
                                 slide = get_slide_by_frame(vid, source_frame)
+
                             if slide:
                                 existing = get_text_extract_by_slide(slide['id'])
                                 if existing:
-                                    update_text_extract_original_suggested(existing['id'], sample, existing['suggested_text'] or sample)
+                                    persisted_text = raw_sample if raw_sample is not None and str(raw_sample).strip() else (display_sample or '')
+                                    update_text_extract_original_suggested(existing['id'], persisted_text, existing['suggested_text'] or persisted_text)
+                                    _append_log(job, f"Persisted sample to existing slide id={slide['id']}")
+                                    job['samples_persisted'] = job.get('samples_persisted', 0) + 1
                                 else:
-                                    add_text_extract(slide['id'], sample, sample)
+                                    persisted_text = raw_sample if raw_sample is not None and str(raw_sample).strip() else (display_sample or '')
+                                    add_text_extract(slide['id'], persisted_text, persisted_text)
+                                    _append_log(job, f"Created text_extract for slide id={slide['id']}")
+                                    job['samples_persisted'] = job.get('samples_persisted', 0) + 1
+                            else:
+                                # No slide matched this frame; create a minimal slide and store the sample
+                                if vid:
+                                    new_slide_id = add_slide_minimal(vid)
+                                    persisted_text = raw_sample if raw_sample is not None and str(raw_sample).strip() else (display_sample or '')
+                                    add_text_extract(new_slide_id, persisted_text, persisted_text)
+                                    _append_log(job, f"No matching slide for frame {source_frame}; created placeholder slide id={new_slide_id} and persisted sample")
+                                    job['samples_persisted'] = job.get('samples_persisted', 0) + 1
+                                else:
+                                    _append_log(job, f"No video_id available to persist sample for frame {source_frame}")
                         except Exception:
                             logging.exception('Failed to persist sample to DB')
                     except Exception:
                         # Best-effort: don't fail the job for UI updates
                         logging.exception('Failed to add text sample to extracts')
                 elif source_slide_id is not None:
-                    _append_log(job, f"Captured text sample : {sample} (from slide {source_slide_id})")
+                    _append_log(job, f"Captured text sample : {display_sample} (from slide {source_slide_id})")
                     try:
                         _add_extract(job, {
                             'frame': None,
                             'timestamp': None,
-                            'text': sample,
+                            'text': raw_sample if raw_sample is not None else display_sample,
                         })
                         # Persist sample by direct slide id
                         try:
                             from database import get_text_extract_by_slide, update_text_extract_original_suggested, add_text_extract
                             existing = get_text_extract_by_slide(source_slide_id)
+                            persisted_text = raw_sample if raw_sample is not None and str(raw_sample).strip() else (display_sample or '')
                             if existing:
-                                update_text_extract_original_suggested(existing['id'], sample, existing['suggested_text'] or sample)
+                                update_text_extract_original_suggested(existing['id'], persisted_text, existing['suggested_text'] or persisted_text)
                             else:
-                                add_text_extract(source_slide_id, sample, sample)
+                                add_text_extract(source_slide_id, persisted_text, persisted_text)
                         except Exception:
                             logging.exception('Failed to persist sample to DB (by slide_id)')
                     except Exception:
                         logging.exception('Failed to add text sample to extracts')
                 else:
-                    _append_log(job, f"Captured text sample : {sample}")
+                    _append_log(job, f"Captured text sample : {display_sample}")
             elif event_type == 'error':
                 job['status'] = 'error'
                 job['error'] = event.get('message', 'Unknown error')
@@ -1082,9 +1154,49 @@ def api_job_samples(job_id):
 
 @app.route('/audio-failures')
 def audio_failures_page():
-    """Render a simple page showing recent audio extraction failures."""
-    failures = get_audio_failures(limit=200)
-    return render_template('audio_failures.html', failures=failures)
+    """Render a page showing recent audio extraction failures with filtering and purge.
+
+    Query params supported:
+      - tool: filter by failing tool (e.g., 'ffmpeg', 'moviepy', 'whisper')
+      - video_id: filter by video id
+      - q: generic search applied to stderr and details
+    """
+    tool = request.args.get('tool')
+    q = request.args.get('q')
+    video_id = request.args.get('video_id')
+    try:
+        vid = int(video_id) if video_id else None
+    except Exception:
+        vid = None
+
+    failures = get_audio_failures(limit=500, video_id=vid)
+    # Apply simple in-memory filters for tool and search for simplicity
+    out = []
+    for f in failures:
+        if tool and str(f['tool'] or '').lower() != str(tool).lower():
+            continue
+        if q:
+            hay = ' '.join([str(f.get('stderr') or ''), str(f.get('details') or ''), str(f.get('error_message') or '')]).lower()
+            if q.lower() not in hay:
+                continue
+        out.append(f)
+
+    return render_template('audio_failures.html', failures=out, filter_tool=tool, filter_q=q, filter_video_id=video_id)
+
+
+@app.route('/admin/purge_audio_failures', methods=['POST'])
+def admin_purge_audio_failures():
+    """Purge audio failures older than N days. Returns JSON with number deleted."""
+    days = int(request.form.get('days', 30))
+    from database import purge_audio_failures_older_than
+    try:
+        deleted = purge_audio_failures_older_than(days)
+        flash(f"Purged {deleted} audio failures older than {days} days", 'success')
+        return redirect(url_for('audio_failures_page'))
+    except Exception as e:
+        logging.exception('Failed to purge audio failures')
+        flash('Failed to purge audio failures: ' + str(e), 'error')
+        return redirect(url_for('audio_failures_page'))
 
 
 @app.route('/api/audio_failures')
@@ -1108,6 +1220,9 @@ def api_audio_failures():
             'end_frame': f['end_frame'],
             'attempts': f['attempts'],
             'error_message': f['error_message'],
+            'tool': f.get('tool'),
+            'stderr': f.get('stderr'),
+            'details': f.get('details'),
             'created_at': f['created_at'],
         })
     return jsonify({'success': True, 'failures': out})
@@ -1194,14 +1309,14 @@ def _parse_settings(data):
         except (TypeError, ValueError):
             return default
 
-    return {
+    result = {
         'extraction_method': settings.get('extraction_method', 'default'),
         'threshold_ssim': _cast('threshold_ssim', float, 0.9),
         'threshold_hist': _cast('threshold_hist', float, 0.9),
         'frame_gap': _cast('frame_gap', int, 10),
         'transition_limit': _cast('transition_limit', int, 3),
-    'progress_interval': _cast('progress_interval', int, 25),
-    'preview_interval': _cast('preview_interval', int, PREVIEW_FRAME_INTERVAL),
+        'progress_interval': _cast('progress_interval', int, 25),
+        'preview_interval': _cast('preview_interval', int, PREVIEW_FRAME_INTERVAL),
         'force_slide_interval': _cast('force_slide_interval', int, PREVIEW_FRAME_INTERVAL),
         'histogram_bins': _cast('histogram_bins', int, 256),
         'scale_percent': _cast('scale_percent', float, 100.0),
@@ -1217,6 +1332,16 @@ def _parse_settings(data):
         'min_slide_audio_seconds': _cast('min_slide_audio_seconds', float, 0.0),
         'auto_benchmark': bool(settings.get('auto_benchmark', False)),
     }
+
+    # Merge any additional keys provided directly by the user in `settings` so
+    # that test helpers and other extensions may pass-through values like
+    # 'test_slides' without changing the code that constructs settings.
+    if isinstance(settings, dict):
+        for k, v in settings.items():
+            if k not in result:
+                result[k] = v
+
+    return result
 
 
 @app.route('/api/job/<job_id>/cancel', methods=['POST'])
@@ -1244,6 +1369,11 @@ def api_process():
         return jsonify({'success': False, 'message': 'Unknown or missing file reference.'}), 400
 
     settings = _parse_settings(data)
+    # Pass-through additional top-level keys (useful for test overrides like 'test_slides')
+    for k, v in data.items():
+        if k not in ('file_id', 'settings') and k not in settings:
+            settings[k] = v
+
     file_entry = uploaded_files[file_id]
     job_id = _start_processing_job(file_entry['path'], settings)
 
@@ -1370,6 +1500,11 @@ def api_health():
         pkgs['reportlab'] = True
     except Exception:
         pkgs['reportlab'] = False
+    try:
+        import whisper
+        pkgs['whisper'] = True
+    except Exception:
+        pkgs['whisper'] = False
 
     status['packages'] = pkgs
 
@@ -1398,7 +1533,107 @@ def api_debug_job(job_id):
         'error': job.get('error'),
     }
     snapshot.setdefault('gpu_diagnostics', {})
+
     return jsonify({'success': True, 'job': snapshot})
+
+
+@app.route('/api/job/<job_id>/logs')
+def api_job_logs(job_id):
+    """Return last N log entries for a job and optionally host logs.
+
+    Query params:
+      - n: number of job log entries to return (default 50)
+      - host: if '1' and app.config['LOG_FILE'] set, returns last N lines from that file
+    """
+    n = int(request.args.get('n', 50))
+    include_host = request.args.get('host') == '1'
+
+    with jobs_lock:
+        job = processing_jobs.get(job_id)
+    if not job:
+        return jsonify({'success': False, 'message': 'Job not found.'}), 404
+
+    logs = list(job.get('logs', []))[-n:]
+
+    response = {'success': True, 'job_id': job_id, 'logs': logs}
+
+    if include_host:
+        log_file = app.config.get('LOG_FILE')
+        host_lines = []
+        if log_file and os.path.exists(log_file):
+            try:
+                # Read last N lines from the host log file efficiently
+                with open(log_file, 'rb') as f:
+                    f.seek(0, os.SEEK_END)
+                    filesize = f.tell()
+                    block_size = 1024
+                    blocks = []
+                    remaining = n
+                    # Read backwards in blocks until we have enough lines or reach start
+                    while filesize > 0 and len(blocks) < 64:
+                        read_size = min(block_size, filesize)
+                        f.seek(filesize - read_size)
+                        block = f.read(read_size)
+                        blocks.insert(0, block)
+                        filesize -= read_size
+                    data = b''.join(blocks).decode('utf-8', errors='replace')
+                    host_lines = data.strip().splitlines()[-n:]
+            except Exception:
+                logging.exception('Failed to read host log file')
+        response['host_log_lines'] = host_lines
+
+    return jsonify(response)
+
+
+@app.route('/api/jobs')
+def api_jobs():
+    """List current in-memory processing jobs. Optional filter: video_id"""
+    video_id = request.args.get('video_id')
+    try:
+        vid = int(video_id) if video_id else None
+    except Exception:
+        vid = None
+    out = []
+    with jobs_lock:
+        for jid, job in processing_jobs.items():
+            if vid and job.get('video_id') != vid:
+                continue
+            out.append({'job_id': jid, 'video_id': job.get('video_id'), 'status': job.get('status'), 'percent_complete': job.get('percent_complete')})
+    return jsonify({'success': True, 'jobs': out})
+
+
+@app.route('/api/job/<job_id>/stream')
+def api_job_stream(job_id):
+    """Server-Sent Events stream for job logs. Clients can connect to receive live
+    job logs and status updates in real time.
+
+    Usage: GET /api/job/<job_id>/stream
+    """
+    def event_stream():
+        last_index = 0
+        while True:
+            with jobs_lock:
+                job = processing_jobs.get(job_id)
+                if not job:
+                    yield 'event: error\n'
+                    yield 'data: Job not found\n\n'
+                    return
+                logs = job.get('logs', [])
+                status = job.get('status')
+            # Send any new logs
+            while last_index < len(logs):
+                entry = logs[last_index]
+                msg = f"[{entry.get('timestamp')}] {entry.get('message')}"
+                yield f'data: {msg}\n\n'
+                last_index += 1
+            # Send periodic heartbeat/status
+            yield f'data: [status] {status}\n\n'
+            if status in ('completed', 'error', 'cancelled') and last_index >= len(logs):
+                return
+            import time
+            time.sleep(0.5)
+
+    return Response(event_stream(), mimetype='text/event-stream')
 
 
 @app.route('/api/slide_wav/<int:slide_id>')

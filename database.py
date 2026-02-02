@@ -92,6 +92,9 @@ def init_db():
             end_frame INTEGER,
             attempts INTEGER,
             error_message TEXT,
+            tool TEXT,
+            stderr TEXT,
+            details TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -131,6 +134,22 @@ def init_db():
             conn.commit()
     except Exception:
         logging.exception('Failed to run slides table migration (ignored)')
+
+    # Migration: add structured fields to audio_failures (tool, stderr, details) if missing
+    try:
+        cursor.execute("PRAGMA table_info(audio_failures)")
+        af_cols = [r[1] for r in cursor.fetchall()]
+        if 'tool' not in af_cols:
+            cursor.execute("ALTER TABLE audio_failures ADD COLUMN tool TEXT")
+            conn.commit()
+        if 'stderr' not in af_cols:
+            cursor.execute("ALTER TABLE audio_failures ADD COLUMN stderr TEXT")
+            conn.commit()
+        if 'details' not in af_cols:
+            cursor.execute("ALTER TABLE audio_failures ADD COLUMN details TEXT")
+            conn.commit()
+    except Exception:
+        logging.exception('Failed to run audio_failures table migration (ignored)')
 
     conn.close()
     logging.info("Database initialized successfully")
@@ -611,14 +630,20 @@ def get_video_by_id(video_id):
     return row
 
 
-def add_audio_failure(video_id, slide_id, start_frame, end_frame, attempts, error_message):
-    """Record an audio extraction failure for later inspection."""
+def add_audio_failure(video_id, slide_id, start_frame, end_frame, attempts, error_message, tool=None, stderr=None, details=None):
+    """Record an audio extraction or transcription failure for later inspection.
+
+    New optional structured fields:
+      - tool: which tool failed (e.g. 'ffmpeg', 'moviepy', 'whisper')
+      - stderr: raw STDERR or error message
+      - details: any additional debugging details
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO audio_failures (video_id, slide_id, start_frame, end_frame, attempts, error_message)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (video_id, slide_id, start_frame, end_frame, attempts, error_message))
+        INSERT INTO audio_failures (video_id, slide_id, start_frame, end_frame, attempts, error_message, tool, stderr, details)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (video_id, slide_id, start_frame, end_frame, attempts, error_message, tool, stderr, details))
     failure_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -839,6 +864,25 @@ def get_all_slides_for_export():
     slides = cursor.fetchall()
     conn.close()
     return slides
+
+
+def purge_audio_failures_older_than(days: int) -> int:
+    """Delete audio_failures older than `days` days and return number deleted.
+
+    Uses timezone-aware UTC timestamps for comparison to avoid ambiguity and
+    avoid DeprecationWarnings from datetime.utcnow().
+    """
+    from datetime import datetime, timedelta, timezone
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cutoff_dt = datetime.now(timezone.utc) - timedelta(days=days)
+    # SQLite CURRENT_TIMESTAMP is in 'YYYY-MM-DD HH:MM:SS' (UTC); format cutoff accordingly
+    cutoff = cutoff_dt.strftime('%Y-%m-%d %H:%M:%S')
+    cursor.execute('DELETE FROM audio_failures WHERE created_at < ?', (cutoff,))
+    deleted = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return deleted
 
 
 if __name__ == '__main__':

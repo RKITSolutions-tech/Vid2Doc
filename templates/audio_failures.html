@@ -1,38 +1,88 @@
-{% extends "base.html" %}
-
-{% block title %}Audio Extraction Failures{% endblock %}
-
+{% extends 'base.html' %}
 {% block content %}
-<div style="padding: clamp(15px, 4vw, 20px);">
-    <h2 style="margin-bottom: clamp(10px, 3vw, 15px); font-size: clamp(18px, 4vw, 24px);">Recent Audio Extraction Failures</h2>
-    <p style="margin-bottom: clamp(15px, 4vw, 20px); font-size: clamp(14px, 2.5vw, 16px);">This table lists recent extraction failures for debugging.</p>
-    
-    <!-- Mobile-friendly table wrapper -->
-    <div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
-        <table style="width:100%; border-collapse: collapse; min-width: 600px; font-size: clamp(12px, 2vw, 14px);">
-            <thead>
-                <tr style="text-align:left; border-bottom: 1px solid #ddd;">
-                    <th style="padding: clamp(8px, 2vw, 12px);">Time</th>
-                    <th style="padding: clamp(8px, 2vw, 12px);">Video</th>
-                    <th style="padding: clamp(8px, 2vw, 12px);">Slide ID</th>
-                    <th style="padding: clamp(8px, 2vw, 12px);">Frames</th>
-                    <th style="padding: clamp(8px, 2vw, 12px);">Attempts</th>
-                    <th style="padding: clamp(8px, 2vw, 12px);">Error Message (truncated)</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for f in failures %}
-                <tr style="border-bottom: 1px solid #f1f1f1;">
-                    <td style="padding: clamp(8px, 2vw, 12px);">{{ f['created_at'] }}</td>
-                    <td style="padding: clamp(8px, 2vw, 12px);">{{ f['filename'] or f['video_id'] }}</td>
-                    <td style="padding: clamp(8px, 2vw, 12px);">{{ f['slide_id'] }}</td>
-                    <td style="padding: clamp(8px, 2vw, 12px);">{{ f['start_frame'] }} → {{ f['end_frame'] }}</td>
-                    <td style="padding: clamp(8px, 2vw, 12px);">{{ f['attempts'] }}</td>
-                    <td style="padding: clamp(8px, 2vw, 12px); max-width: 60ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ f['error_message'] }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+  <h2>Audio Failures</h2>
+
+  <form method="get" class="mb-3 row g-2">
+    <div class="col-auto">
+      <input type="text" name="q" placeholder="search (stderr/details/error)" value="{{ filter_q or '' }}" class="form-control">
     </div>
-</div>
+    <div class="col-auto">
+      <select name="tool" class="form-control">
+        <option value="">All tools</option>
+        <option value="ffmpeg" {% if filter_tool == 'ffmpeg' %}selected{% endif %}>ffmpeg</option>
+        <option value="moviepy" {% if filter_tool == 'moviepy' %}selected{% endif %}>moviepy</option>
+        <option value="whisper" {% if filter_tool == 'whisper' %}selected{% endif %}>whisper</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <input type="text" name="video_id" placeholder="video id" value="{{ filter_video_id or '' }}" class="form-control">
+    </div>
+    <div class="col-auto">
+      <button class="btn">Filter</button>
+    </div>
+    <div class="col-auto">
+      <button id="open-purge-modal" class="btn btn-danger">Purge</button>
+    </div>
+  </form>
+
+  <!-- Purge modal -->
+  <div id="purge-modal" style="display:none; position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(0,0,0,0.45); align-items:center; justify-content:center;">
+    <div style="background:white; padding:20px; border-radius:8px; width:360px; margin:auto;">
+      <h4>Purge audio failures</h4>
+      <p>Remove audio failures older than <input id="purge-days" type="number" value="30" min="1" style="width:80px;"> days.</p>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button id="purge-cancel" class="btn">Cancel</button>
+        <form id="purge-form" method="post" action="{{ url_for('admin_purge_audio_failures') }}" style="margin:0; display:inline;">
+          <input type="hidden" name="days" id="purge-form-days" value="30">
+          <button type="submit" class="btn btn-danger">Purge</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  document.getElementById('open-purge-modal').addEventListener('click', function(){
+    document.getElementById('purge-modal').style.display = 'flex';
+  });
+  document.getElementById('purge-cancel').addEventListener('click', function(e){
+    e.preventDefault();
+    document.getElementById('purge-modal').style.display = 'none';
+  });
+  document.getElementById('purge-days').addEventListener('input', function(){
+    document.getElementById('purge-form-days').value = this.value;
+  });
+  </script>
+
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Video</th>
+        <th>Filename</th>
+        <th>Frames</th>
+        <th>Attempts</th>
+        <th>Tool</th>
+        <th>Stderr</th>
+        <th>Details</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in failures %}
+        <tr>
+          <td><a href="{{ url_for('audio_failure_detail', failure_id=f.id) }}">{{ f.id }}</a></td>
+          <td>{{ f.video_id or '' }}</td>
+          <td>{{ f.filename or 'unknown' }}</td>
+          <td>{{ f.start_frame }}→{{ f.end_frame }}</td>
+          <td>{{ f.attempts }}</td>
+          <td>{{ f.tool or 'unknown' }}</td>
+          <td><code>{{ (f.stderr[:120] + '...') if f.stderr else '' }}</code></td>
+          <td><code>{{ (f.details[:120] + '...') if f.details else '' }}</code></td>
+          <td>{{ f.created_at }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="9">No audio failures found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 {% endblock %}

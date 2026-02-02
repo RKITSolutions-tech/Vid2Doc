@@ -25,9 +25,16 @@ _WHISPER_MODELS = {}
 
 
 def _load_whisper_model(model_size: str):
-    """Lazy-load and cache Whisper models to avoid repeated downloads."""
+    """Lazy-load and cache Whisper models to avoid repeated downloads.
+
+    Raises ImportError with a clear message if the `whisper` package is missing so
+    callers can handle the missing dependency gracefully.
+    """
     # Import whisper lazily to avoid requiring it at module import time for tests
-    import whisper
+    try:
+        import whisper
+    except ModuleNotFoundError as e:
+        raise ImportError("Whisper is not installed. Install via 'pip install openai-whisper' or 'pip install -r requirements.txt' (prefer 'openai-whisper' for best compatibility)") from e
 
     model_size = model_size or "base"
     if model_size not in _WHISPER_MODELS:
@@ -107,6 +114,12 @@ def extract_audio_segment(video_path, start_frame, end_frame, fps, output_audio_
 
     # After retries, attempt moviepy fallback
     logging.error(f"ffmpeg failed after {max_attempts} attempts for segment {start_frame}→{end_frame}")
+    try:
+        from database import add_audio_failure
+        add_audio_failure(None, None, start_frame, end_frame, max_attempts, f"ffmpeg error: {last_ffmpeg_stderr}", tool='ffmpeg', stderr=(last_ffmpeg_stderr or None))
+    except Exception:
+        logging.exception('Failed to record ffmpeg audio_failure (ignored)')
+
     logging.info("Attempting moviepy fallback for audio extraction")
     try:
         clip = VideoFileClip(video_path)
@@ -132,6 +145,11 @@ def extract_audio_segment(video_path, start_frame, end_frame, fps, output_audio_
         return
     except Exception as me:
         logging.error(f"MoviePy fallback also failed: {me}")
+        try:
+            from database import add_audio_failure
+            add_audio_failure(None, None, start_frame, end_frame, max_attempts, f"MoviePy fallback error: {me}", tool='moviepy', stderr=str(me))
+        except Exception:
+            logging.exception('Failed to record moviepy audio_failure (ignored)')
         # Raise a clear error that includes ffmpeg stderr and the fallback message
         raise RuntimeError(
             f"ffmpeg error (after {max_attempts} attempts): {last_ffmpeg_stderr}\nMoviePy fallback error: {me}"
@@ -190,26 +208,79 @@ def get_slide_text(video_file_name, last_frame_idx, frame_idx, fps, *, model_siz
     logging.info(f"Checking if wav file {wav_full_path} exists")
     if not os.path.exists(wav_full_path):
         logging.info(f"Wav file {wav_full_path} does not exist; extracting audio segment")
-        extract_audio_segment(video_full_path, last_frame_idx, frame_idx, fps, wav_full_path, max_attempts=audio_retry_attempts)
-        # Cleanup folder to limit number of stored wav files
-        _cleanup_wav_folder(wav_folder, max_files=max_wav_files)
+        try:
+            extract_audio_segment(video_full_path, last_frame_idx, frame_idx, fps, wav_full_path, max_attempts=audio_retry_attempts)
+            # Cleanup folder to limit number of stored wav files
+            _cleanup_wav_folder(wav_folder, max_files=max_wav_files)
+            logging.info(f"Audio segment written to {wav_full_path} (size={os.path.getsize(wav_full_path)} bytes)")
+        except Exception as e:
+            logging.exception(f"Audio extraction failed for {video_full_path} {last_frame_idx}->{frame_idx}: {e}")
+            # Record an audio failure for easy triage
+            try:
+                from database import add_audio_failure
+                add_audio_failure(video_id, None, last_frame_idx, frame_idx, 0, f"Audio extraction failed: {e}")
+            except Exception:
+                logging.exception('Failed to record audio_failure after extraction error')
+            # Allow caller to continue; return empty transcript
+            return ""
+    else:
+        try:
+            logging.info(f"Existing wav file found: {wav_full_path} (size={os.path.getsize(wav_full_path)} bytes)")
+        except Exception:
+            logging.info(f"Existing wav file found: {wav_full_path}")
 
-    # Load the whisper model (may raise). Do this lazily and let failures bubble up
-    # so the caller (video processor) can record failures and continue.
-    model = _load_whisper_model(model_size)
-
+    # Load the whisper model (may raise). Handle missing dependency explicitly
+    logging.info(f"Loading Whisper model '{model_size}' for frames {last_frame_idx}->{frame_idx}")
+    try:
+        model = _load_whisper_model(model_size)
+    except ImportError as ie:
+        logging.error(f"Whisper not available: {ie}")
+        try:
+            from database import add_audio_failure
+            add_audio_failure(video_id, None, last_frame_idx, frame_idx, 0, f"Whisper not installed: {ie}", tool='whisper', stderr=str(ie))
+        except Exception:
+            logging.exception('Failed to record audio_failure for missing Whisper')
+        # Return empty transcription so processing continues without crashing
+        return ""
     # Whisper may warn about FP16 on CPU; we've ensured the model is on CPU and float32
     # but the library may still emit a benign warning. Suppress that specific warning
     # locally so it doesn't spam logs during processing.
     import warnings as _warnings
-    with _warnings.catch_warnings():
-        _warnings.filterwarnings('ignore', message='FP16 is not supported on CPU; using FP32 instead')
-        result = model.transcribe(wav_full_path)
-    recognized_text = result["text"]
-    #logging.info(f"Recognized text: {recognized_text}")
-    
-    
-    return recognized_text
+    import time as _time
+    try:
+        t0 = _time.time()
+        with _warnings.catch_warnings():
+            _warnings.filterwarnings('ignore', message='FP16 is not supported on CPU; using FP32 instead')
+            result = model.transcribe(wav_full_path)
+        duration = _time.time() - t0
+        recognized_text = result.get("text", "") if isinstance(result, dict) else str(result)
+        if not recognized_text or not recognized_text.strip():
+            logging.warning(f"Whisper transcribed empty text for {wav_full_path} (frames {last_frame_idx}->{frame_idx}) [duration={duration:.2f}s]")
+            try:
+                # log a small dump of the wav file size to aid debugging
+                wav_size = os.path.getsize(wav_full_path)
+                logging.debug(f"WAV size: {wav_size} bytes for {wav_full_path}")
+            except Exception:
+                pass
+            return ""
+        logging.info(f"Recognized text for frames {last_frame_idx}->{frame_idx} (duration={duration:.2f}s): {recognized_text[:240]!s}")
+        return recognized_text
+    except Exception as e:
+        # Log and record an audio_failure if a video_id is provided so operators can inspect
+        import logging as _logging
+        _err_text = str(e)
+        _logging.exception(f"Whisper transcription failed for {wav_full_path}: {_err_text}")
+        try:
+            from database import add_audio_failure
+            # Use provided audio_retry_attempts as attempts if available
+            attempts = int(audio_retry_attempts) if audio_retry_attempts is not None else 0
+            # Truncate stderr to a reasonable length to avoid huge DB fields
+            stderr_trunc = (_err_text[:4000] + '...') if len(_err_text) > 4000 else _err_text
+            add_audio_failure(video_id, None, last_frame_idx, frame_idx, attempts, f"Whisper error (refer to stderr)", tool='whisper', stderr=stderr_trunc)
+        except Exception:
+            _logging.exception('Failed to record audio_failure after transcription error')
+        # Return empty string to allow processing to continue without crashing
+        return ""
 
 @lru_cache(maxsize=4)
 def _get_summarizer(model_name: str = "sshleifer/distilbart-cnn-12-6"):

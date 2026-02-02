@@ -252,6 +252,19 @@
         </div>
     </div>
 
+    <!-- Live logs widget -->
+    <div class="review-card" style="margin-top:10px;">
+      <div style="grid-column: 1 / -1;">
+        <label><strong>Live Job Logs</strong></label>
+        <div>
+          <button id="start-log-btn" class="btn">Start Live Logs</button>
+          <input id="job-id-input" placeholder="Job ID (optional)" style="margin-left:10px;width:240px;padding:6px;border-radius:6px;border:1px solid #ddd;">
+          <small style="margin-left:8px;color:#64748b">Tip: leave blank to auto-detect an active job for this video</small>
+        </div>
+        <pre id="live-log-area" style="height:180px;overflow:auto;background:#0f172a;color:#e6eef8;padding:10px;border-radius:8px;margin-top:8px;white-space:pre-wrap;">No live logs yet.</pre>
+      </div>
+    </div>
+
     {% if not processed_videos %}
         <div class="empty-state">
             No processed videos are available yet. Upload and process a video to start reviewing slides.
@@ -359,5 +372,50 @@ function saveText(slideId, locked) {
             statusEl.classList.add('error');
         });
 }
+
+// Live logs client
+(function(){
+  const startBtn = document.getElementById('start-log-btn');
+  const logArea = document.getElementById('live-log-area');
+  const jobIdInput = document.getElementById('job-id-input');
+  let evtSource = null;
+
+  function append(msg){
+    if(!logArea) return;
+    logArea.textContent += msg + "\n";
+    logArea.scrollTop = logArea.scrollHeight;
+  }
+
+  async function startForJob(jobId){
+    if(evtSource){ evtSource.close(); evtSource = null; }
+    append(`[live] connecting to job ${jobId}...`);
+    evtSource = new EventSource(`/api/job/${jobId}/stream`);
+    evtSource.onmessage = function(e){ append(e.data); };
+    evtSource.onerror = function(e){ append('[live] connection closed or error'); evtSource.close(); evtSource = null; };
+  }
+
+  async function autodetectJobForVideo(){
+    const vid = {{ video_id or 'null' }};
+    if(!vid){ append('[live] no video selected to auto-detect job'); return null; }
+    try{
+      const r = await fetch(`/api/jobs?video_id=${vid}`);
+      const j = await r.json();
+      if(j.success && j.jobs && j.jobs.length){
+        return j.jobs[0].job_id;
+      }
+    }catch(e){ append('[live] job discovery failed: '+e.message); }
+    return null;
+  }
+
+  startBtn.addEventListener('click', async function(){
+    let jobId = jobIdInput.value && jobIdInput.value.trim();
+    if(!jobId){
+      jobId = await autodetectJobForVideo();
+      if(!jobId){ append('[live] no active job detected for this video'); return; }
+      append(`[live] auto-detected job ${jobId}`);
+    }
+    startForJob(jobId);
+  });
+})();
 </script>
 {% endblock %}
