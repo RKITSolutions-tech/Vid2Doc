@@ -16,6 +16,10 @@ import logging
 import ffmpeg
 from io import BytesIO
 from functools import lru_cache
+import pathlib
+import datetime
+import uuid
+import json
 
 
 # Configure logging
@@ -116,7 +120,15 @@ def extract_audio_segment(video_path, start_frame, end_frame, fps, output_audio_
     logging.error(f"ffmpeg failed after {max_attempts} attempts for segment {start_frame}→{end_frame}")
     try:
         from database import add_audio_failure
-        add_audio_failure(None, None, start_frame, end_frame, max_attempts, f"ffmpeg error: {last_ffmpeg_stderr}", tool='ffmpeg', stderr=(last_ffmpeg_stderr or None))
+        stderr_text = last_ffmpeg_stderr or ''
+        # write full stderr to logs and store a truncated summary in DB
+        try:
+            log_path = _write_ffmpeg_log(stderr_text, video_id=None, prefix=os.path.splitext(os.path.basename(output_audio_path))[0])
+        except Exception:
+            log_path = None
+        stderr_trunc = (stderr_text[:2000] + '...(truncated)') if len(stderr_text) > 2000 else stderr_text
+        details = json.dumps({'ffmpeg_log_path': log_path}) if log_path else None
+        add_audio_failure(None, None, start_frame, end_frame, max_attempts, f"ffmpeg error: {stderr_trunc}", tool='ffmpeg', stderr=stderr_trunc, details=details)
     except Exception:
         logging.exception('Failed to record ffmpeg audio_failure (ignored)')
 
@@ -147,7 +159,14 @@ def extract_audio_segment(video_path, start_frame, end_frame, fps, output_audio_
         logging.error(f"MoviePy fallback also failed: {me}")
         try:
             from database import add_audio_failure
-            add_audio_failure(None, None, start_frame, end_frame, max_attempts, f"MoviePy fallback error: {me}", tool='moviepy', stderr=str(me))
+            stderr_text = str(me) or ''
+            try:
+                log_path = _write_ffmpeg_log(stderr_text, video_id=None, prefix=os.path.splitext(os.path.basename(output_audio_path))[0])
+            except Exception:
+                log_path = None
+            stderr_trunc = (stderr_text[:2000] + '...(truncated)') if len(stderr_text) > 2000 else stderr_text
+            details = json.dumps({'ffmpeg_log_path': log_path}) if log_path else None
+            add_audio_failure(None, None, start_frame, end_frame, max_attempts, f"MoviePy fallback error: {stderr_trunc}", tool='moviepy', stderr=stderr_trunc, details=details)
         except Exception:
             logging.exception('Failed to record moviepy audio_failure (ignored)')
         # Raise a clear error that includes ffmpeg stderr and the fallback message
@@ -170,6 +189,40 @@ def _cleanup_wav_folder(folder_path: str, max_files: int = 200):
                 logging.exception(f"Failed to remove old wav file: {f}")
     except Exception:
         logging.exception("Failed to cleanup wav folder")
+
+
+def _write_ffmpeg_log(stderr_text: str, video_id: int = None, prefix: str = None) -> str | None:
+    """Write full ffmpeg stderr to a timestamped file under logs/audio_failures/.
+
+    Returns the path to the written log or None on failure.
+    """
+    try:
+        logs_dir = os.path.join('logs', 'audio_failures')
+        os.makedirs(logs_dir, exist_ok=True)
+        timestamp = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+        safe_prefix = (prefix or 'ffmpeg').replace(' ', '_')
+        vid = str(video_id) if video_id is not None else 'nogid'
+        filename = f"{vid}_{safe_prefix}_{timestamp}_{uuid.uuid4().hex[:8]}.stderr.log"
+        path = os.path.join(logs_dir, filename)
+        with open(path, 'w', encoding='utf-8', errors='replace') as f:
+            f.write(stderr_text or '')
+        try:
+            os.chmod(path, 0o640)
+        except Exception:
+            # Not critical if chmod fails in some environments
+            pass
+        # Ensure logs dir is ignored by git
+        gi = os.path.join(logs_dir, '.gitignore')
+        if not os.path.exists(gi):
+            try:
+                with open(gi, 'w') as g:
+                    g.write('*\n')
+            except Exception:
+                pass
+        return path
+    except Exception:
+        logging.exception('Failed to write ffmpeg stderr log')
+        return None
 
 
 def get_slide_text(video_file_name, last_frame_idx, frame_idx, fps, *, model_size: str = "base", audio_retry_attempts: int = None, video_id: int = None, max_wav_files: int = 200):
@@ -215,12 +268,7 @@ def get_slide_text(video_file_name, last_frame_idx, frame_idx, fps, *, model_siz
             logging.info(f"Audio segment written to {wav_full_path} (size={os.path.getsize(wav_full_path)} bytes)")
         except Exception as e:
             logging.exception(f"Audio extraction failed for {video_full_path} {last_frame_idx}->{frame_idx}: {e}")
-            # Record an audio failure for easy triage
-            try:
-                from database import add_audio_failure
-                add_audio_failure(video_id, None, last_frame_idx, frame_idx, 0, f"Audio extraction failed: {e}")
-            except Exception:
-                logging.exception('Failed to record audio_failure after extraction error')
+            # Extraction has already recorded a detailed audio_failure (including ffmpeg log path)
             # Allow caller to continue; return empty transcript
             return ""
     else:
