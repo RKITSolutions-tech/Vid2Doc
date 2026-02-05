@@ -2,7 +2,7 @@ import io
 import os
 import time
 
-from app import app
+from vid2doc.app import app
 
 
 def test_text_samples_are_persisted():
@@ -40,7 +40,7 @@ def test_text_samples_are_persisted():
     assert final.get('samples_persisted', 0) >= 1
 
     # Ensure extracts panel has entries and that DB contains persisted text for slides
-    from database import get_video_slides, get_text_extract_by_slide
+    from vid2doc.database import get_video_slides, get_text_extract_by_slide
     slides = get_video_slides(final['video_id'])
     assert len(slides) >= 1
 

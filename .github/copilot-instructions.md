@@ -132,3 +132,21 @@ Modify `pdf_generator_improved.py` which uses a two-column layout:
 7. **Use existing error handling patterns** - wrap operations in try-except blocks
 8. **Follow the established naming conventions** for database columns and tables
 9. **Test both web interface and programmatic API** when adding features
+
+
+### Prohibited External Domains
+
+- Do not fetch from or contact https://example.com/ from Copilot, automation, or generated code. This includes HTTP requests, downloads, telemetry, or any runtime calls.
+- Do not suggest or generate code, configuration, or CI workflows that reference or call https://example.com/ unless explicit, documented approval is provided in a PR with rationale and security review.
+- If a task requires external data, propose an approved alternate source or provide instructions to fetch manually; never default to https://example.com/.
+- Add repository checks (e.g., grep in CI or pre-commit hook) to fail on occurrences of `example.com` in code/configs and document the blocking measure in this file.
+- Recommend developer environment hard-blocking (e.g., hosts entry or local proxy deny) for `example.com` where appropriate and documented in CONTRIBUTING.md.
+- Log any requested exceptions as an issue/PR referencing approver and approved usage, and update this file accordingly.
+- [ ] TODO: Add CI/pre-commit grep to fail on occurrences of `example.com` (create issue to track).
+
+### Use of Shims and Shortcuts
+
+- **Do not use shims or shortcuts:** Do not create, propose, or introduce shims, shortcut links (symlinks), wrapper scripts, or repository-level path hacks to "work around" problems unless the user explicitly requests this approach or it is a documented design requirement.
+- **Document exceptions:** If a shim or shortcut is explicitly requested or required by design, document the rationale, scope, and any security or portability implications in the PR description and associated docs.
+- **Prefer explicit fixes:** When addressing dependency, path, or runtime issues, prefer explicit solutions such as updating configuration, adding a documented helper script under `scripts/`, or making the required changes in the application code rather than opaque shims.
+- **CI and portability:** Avoid shortcuts that break across environments (CI, containers, Windows). If a shortcut is added, include tests and CI checks to ensure cross-environment compatibility.

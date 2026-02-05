@@ -1,3 +1,17 @@
+"""Deprecated root module.
+
+The purge helper moved into the `vid2doc` package. Import from
+`vid2doc.database_purge` or run `scripts/check_env.py`/`scripts/consolidate_tests.py` as needed.
+"""
+
+raise ImportError("module 'database_purge' moved: import from 'vid2doc.database_purge' instead")
+"""Compatibility shim for `database_purge` moved into the `vid2doc` package.
+
+This root-level module re-exports from `vid2doc.database_purge` so existing
+CLI usage continues to work during migration.
+"""
+
+from vid2doc.database_purge import *  # noqa: F401,F403
 """Standalone helper for purging audio_failures older than N days.
 """
 import sys

@@ -1,6 +1,6 @@
 import time
 import threading
-from app import _start_processing_job, app as flask_app, processing_jobs
+from vid2doc.app import _start_processing_job, app as flask_app, processing_jobs
 
 
 def fake_process_video(settings=None, progress_callback=None, should_cancel=None):
@@ -19,7 +19,7 @@ def fake_process_video(settings=None, progress_callback=None, should_cancel=None
 
 def test_progress_throttle_and_gpu_log_absent(monkeypatch):
     # Monkeypatch the VideoProcessor.process_video path to use fake_process_video
-    import video_processor
+    import vid2doc.video_processor as video_processor
 
     class DummyProcessor:
         def __init__(self, path, out):

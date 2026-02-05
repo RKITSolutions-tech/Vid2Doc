@@ -69,7 +69,7 @@ else
   "$VENV_PY" -m pip install Flask
 fi
 
-export FLASK_APP=app.py
+export FLASK_APP=vid2doc:create_app
 export FLASK_ENV=development
 
 HOST=${2:-0.0.0.0}

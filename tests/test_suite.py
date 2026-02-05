@@ -18,25 +18,25 @@ TEST_DB = 'test_video_documentation.db'
 # IMPORTANT: Set SQLAlchemy database URI BEFORE any imports that use it
 os.environ['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.abspath(TEST_DB)}'
 
-from database import (init_db, add_video, add_slide, add_text_extract, 
+from vid2doc.database import (init_db, add_video, add_slide, add_text_extract, 
                       create_section, assign_slide_to_section, get_video_slides,
                       update_text_extract, get_sections_by_video, DATABASE_PATH)
 from unittest.mock import patch
-from video_processor import VideoProcessor
-from pdf_generator_improved import generate_pdf_from_video_id
+from vid2doc.video_processor import VideoProcessor
+from vid2doc.pdf_generator_improved import generate_pdf_from_video_id
 
 def setup_test_db():
     """Setup test database"""
     global DATABASE_PATH
     # Use test database
-    import database
+    import vid2doc.database as database
     database.DATABASE_PATH = TEST_DB
     if os.path.exists(TEST_DB):
         os.remove(TEST_DB)
     init_db()
     
     # Also initialize SQLAlchemy models
-    from models_sqlalchemy import init_models
+    from vid2doc.models_sqlalchemy import init_models
     init_models()
 
 def cleanup_test_db():
@@ -58,7 +58,7 @@ class TestDatabase:
         assert os.path.exists(TEST_DB)
         
         # Check tables exist
-        import database
+        import vid2doc.database as database
         conn = database.get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -129,7 +129,7 @@ class TestVideoProcessing:
     def setup_method(self):
         setup_test_db()
         # Update database module to use test DB
-        import database
+        import vid2doc.database as database
         database.DATABASE_PATH = TEST_DB
     
     def teardown_method(self):
@@ -230,7 +230,7 @@ class TestTextEditing:
     
     def setup_method(self):
         setup_test_db()
-        import database
+        import vid2doc.database as database
         database.DATABASE_PATH = TEST_DB
     
     def teardown_method(self):
@@ -309,7 +309,7 @@ class TestPDFGeneration:
     
     def setup_method(self):
         setup_test_db()
-        import database
+        import vid2doc.database as database
         database.DATABASE_PATH = TEST_DB
     
     def teardown_method(self):

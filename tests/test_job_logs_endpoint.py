@@ -2,7 +2,7 @@ import io
 import os
 import time
 
-from app import app
+from vid2doc.app import app
 
 
 def test_job_logs_endpoint_includes_job_logs_and_host(tmp_path):

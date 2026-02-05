@@ -1,5 +1,5 @@
-from video_audio_extraction import get_slide_text
-import database
+from vid2doc.video_audio_extraction import get_slide_text
+import vid2doc.database as database
 
 
 def test_whisper_missing_records_audio_failure(tmp_path):
@@ -9,7 +9,7 @@ def test_whisper_missing_records_audio_failure(tmp_path):
     database.init_db()
 
     # Monkeypatch _load_whisper_model to raise ImportError
-    import video_audio_extraction as vae
+    import vid2doc.video_audio_extraction as vae
     orig = vae._load_whisper_model
     vae._load_whisper_model = lambda x: (_ for _ in ()).throw(ImportError('whisper missing for test'))
     try:

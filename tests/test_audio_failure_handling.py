@@ -2,9 +2,9 @@ import os
 import sqlite3
 import time
 
-from video_audio_extraction import get_slide_text, _load_whisper_model
-import video_audio_extraction as vae
-import database
+from vid2doc.video_audio_extraction import get_slide_text, _load_whisper_model
+import vid2doc.video_audio_extraction as vae
+import vid2doc.database as database
 
 
 def test_transcription_failure_records_audio_failure(tmp_path, monkeypatch):

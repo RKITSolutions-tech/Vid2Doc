@@ -2,15 +2,15 @@ import io
 import os
 import time
 
-from app import app
-from database import add_audio_failure
+from vid2doc.app import app
+from vid2doc.database import add_audio_failure
 
 
 def test_audio_failure_detail_shows_structured_fields(tmp_path):
     # Use test DB
     db = str(tmp_path / 'test_af.db')
     # Point DB to a temp file and init
-    import database as dbmod
+    import vid2doc.database as dbmod
     dbmod.DATABASE_PATH = db
     dbmod.init_db()
 

@@ -17,7 +17,7 @@ if str(ROOT_DIR) not in sys.path:
 
 import database
 from database import get_db_connection, get_video_slides, init_db
-from video_processor import VideoProcessor
+from vid2doc.video_processor import VideoProcessor
 
 
 def test_small_demo_video_audio_capture(tmp_path):

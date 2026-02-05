@@ -19,7 +19,7 @@ def use_temp_db(tmp_path, monkeypatch):
     monkeypatch.setenv('SQLALCHEMY_DATABASE_URI', f'sqlite:///{db_file}')
     
     # Import and reinitialize the engine with the test database
-    from models_sqlalchemy import reinit_engine, init_models
+    from vid2doc.models_sqlalchemy import reinit_engine, init_models
     reinit_engine(f'sqlite:///{db_file}')
     
     # Initialize schema
@@ -36,7 +36,7 @@ def use_temp_db(tmp_path, monkeypatch):
 @pytest.fixture
 def db_session():
     """Provide a SQLAlchemy session for tests."""
-    from models_sqlalchemy import SessionLocal
+    from vid2doc.models_sqlalchemy import SessionLocal
     session = SessionLocal()
     try:
         yield session

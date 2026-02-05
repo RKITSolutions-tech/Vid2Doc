@@ -2,7 +2,7 @@ import os
 import time
 from datetime import datetime, timedelta
 
-import database
+import vid2doc.database as database
 
 
 def test_purge_audio_failures_older_than(tmp_path):

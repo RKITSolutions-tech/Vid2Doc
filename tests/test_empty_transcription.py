@@ -2,8 +2,8 @@ import io
 import os
 import time
 
-from app import app
-import video_audio_extraction as vae
+from vid2doc.app import app
+import vid2doc.video_audio_extraction as vae
 
 
 def test_empty_transcription_is_logged(monkeypatch):
@@ -45,7 +45,7 @@ def test_empty_transcription_is_logged(monkeypatch):
     assert final.get('empty_samples', 0) >= 1
 
     # Verify there are no entries in audio_failures for this job's video id
-    from database import get_audio_failures
+    from vid2doc.database import get_audio_failures
     fails = get_audio_failures(video_id=final['video_id'])
     # Should be 0 because empty transcription is not an error
     assert len(fails) == 0

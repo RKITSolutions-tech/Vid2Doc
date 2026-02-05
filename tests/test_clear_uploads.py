@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from app import _clear_directory_contents
+from vid2doc.app import _clear_directory_contents
 
 
 def test_clear_directory_contents_removes_files_and_dirs(tmp_path):

@@ -3,7 +3,7 @@ import os
 import time
 import pytest
 
-from app import app
+from vid2doc.app import app
 
 
 def test_upload_and_process():
@@ -43,6 +43,6 @@ def test_upload_and_process():
     assert final['total_frames'] == 4
 
     # Validate DB slides were created
-    from database import get_video_slides
+    from vid2doc.database import get_video_slides
     slides = get_video_slides(final['video_id'])
     assert len(slides) == 4

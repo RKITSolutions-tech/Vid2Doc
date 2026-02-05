@@ -1,10 +1,7 @@
-# git-filter-repo will wrap this file's contents as the body of
-# `def commit_callback(commit):` so this file should contain only
-# the body (no function definition).
-# Keep the initial commit unchanged — hex id recorded earlier.
-# Only modify commits that are not the root (root commits have no parents).
-if commit.parents:
-    commit.author_name = b"Ryan Kenning"
-    commit.author_email = b"rkenning2@gmail.com"
-    commit.committer_name = b"Ryan Kenning"
-    commit.committer_email = b"rkenning2@gmail.com"
+"""Deprecated root module.
+
+The callback body has been archived under `vid2doc.rewrite_callback`.
+Importing this root module will raise an ImportError and direct users to
+the new package location.
+"""
+raise ImportError("module 'rewrite_callback' moved: import from 'vid2doc.rewrite_callback' instead")
