@@ -18,15 +18,15 @@ def test_e2e_process_and_pdf(tmp_path):
     os.environ['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{str(test_db)}'
 
     # Initialize DB
-    from database import init_db
+    from vid2doc.database import init_db
     # Override database path for sqlite helper
-    import database
+    import vid2doc.database as database
     database.DATABASE_PATH = str(test_db)
     init_db()
 
     # Initialize SQLAlchemy models to point to the test DB (used by PDF generator)
     try:
-        from models_sqlalchemy import reinit_engine, init_models
+        from vid2doc.models_sqlalchemy import reinit_engine, init_models
         # Reinit engine to use the SQLALCHEMY_DATABASE_URI we set above
         reinit_engine(os.environ['SQLALCHEMY_DATABASE_URI'])
         init_models()
@@ -55,7 +55,7 @@ def test_e2e_process_and_pdf(tmp_path):
     # (defer persistence until after slides are available)
 
     # Verify slides in DB
-    from database import get_video_slides
+    from vid2doc.database import get_video_slides
     slides = get_video_slides(video_id)
     assert slides and len(slides) > 0, 'No slides extracted'
 
@@ -64,7 +64,7 @@ def test_e2e_process_and_pdf(tmp_path):
     print('Extracted slide timestamps (s):', timestamps)
 
     # Generate PDF
-    from pdf_generator_improved import generate_pdf_from_video_id
+    from vid2doc.pdf_generator_improved import generate_pdf_from_video_id
     pdf_path = str(outdir / 'e2e_output.pdf')
     generate_pdf_from_video_id(video_id, pdf_path, 'E2E Small Demo')
 

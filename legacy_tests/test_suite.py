@@ -23,7 +23,7 @@ from vid2doc.database import (init_db, add_video, add_slide, add_text_extract,
                       update_text_extract, get_sections_by_video, DATABASE_PATH)
 from unittest.mock import patch
 from vid2doc.video_processor import VideoProcessor
-from pdf_generator_improved import generate_pdf_from_video_id
+from vid2doc.pdf_generator_improved import generate_pdf_from_video_id
 
 def setup_test_db():
     """Setup test database"""
@@ -199,8 +199,8 @@ class TestVideoProcessing:
             "min_slide_audio_seconds": 0.0,
         }
 
-        with patch("video_audio_extraction.get_slide_text", side_effect=fake_get_slide_text), \
-             patch("video_audio_extraction.summrise_text", side_effect=fake_summrise_text):
+           with patch("vid2doc.video_audio_extraction.get_slide_text", side_effect=fake_get_slide_text), \
+               patch("vid2doc.video_audio_extraction.summrise_text", side_effect=fake_summrise_text):
             processor = VideoProcessor(trimmed_path, 'test_output')
             video_id = processor.process_video(settings=settings)
 
@@ -230,7 +230,7 @@ class TestTextEditing:
     
     def setup_method(self):
         setup_test_db()
-        import database
+        import vid2doc.database as database
         database.DATABASE_PATH = TEST_DB
     
     def teardown_method(self):
@@ -309,7 +309,7 @@ class TestPDFGeneration:
     
     def setup_method(self):
         setup_test_db()
-        import database
+        import vid2doc.database as database
         database.DATABASE_PATH = TEST_DB
     
     def teardown_method(self):

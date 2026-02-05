@@ -3,7 +3,7 @@ import importlib
 
 def test_summarizer_fallback_includes_note_on_hf_block():
     # Import module (this will use the existing fallback if HF cannot load)
-    mod = importlib.import_module('video_audio_extraction')
+    mod = importlib.import_module('vid2doc.video_audio_extraction')
     res = mod.summrise_text('This is a short test for the fallback', max_length=10)
     assert isinstance(res, list)
     assert len(res) == 1

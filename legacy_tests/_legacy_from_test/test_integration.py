@@ -77,7 +77,7 @@ def main():
     os.environ['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{test_db}'
 
     # NOW it's safe to import models_sqlalchemy
-    from models_sqlalchemy import init_models, SessionLocal, Video, Slide, TextExtract, Section
+    from vid2doc.models_sqlalchemy import init_models, SessionLocal, Video, Slide, TextExtract, Section
     init_models()
 
     from vid2doc.video_processor import VideoProcessor
@@ -141,7 +141,7 @@ def main():
     # Generate PDF
     print("\n6. Generating PDF...")
 
-    from pdf_generator_improved import generate_pdf_from_video_id
+    from vid2doc.pdf_generator_improved import generate_pdf_from_video_id
 
     pdf_path = os.path.join(test_output_dir, 'test_output.pdf')
     generate_pdf_from_video_id(video_id, pdf_path, "Test Video Documentation")

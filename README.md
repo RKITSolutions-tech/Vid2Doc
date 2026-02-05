@@ -51,7 +51,7 @@ bash scripts/bootstrap.sh
 
 4. Initialize the database:
 ```bash
-python database.py
+python -m vid2doc.database
 ```
 
 Health check
@@ -68,7 +68,7 @@ After bootstrapping you can verify key runtime dependencies via the web app or C
 
 Start the Flask server:
 ```bash
-python app.py
+python -m vid2doc
 ```
 
 Then open your browser to `http://localhost:5000`
@@ -87,8 +87,8 @@ Then open your browser to `http://localhost:5000`
 You can also use the modules programmatically:
 
 ```python
-from video_processor import VideoProcessor
-from pdf_generator_improved import generate_pdf_from_video_id
+from vid2doc.video_processor import VideoProcessor
+from vid2doc.pdf_generator_improved import generate_pdf_from_video_id
 
 # Process a video with dual-resolution for speed + quality
 processor = VideoProcessor('path/to/video.mp4', 'output')
@@ -103,7 +103,7 @@ generate_pdf_from_video_id(video_id, 'output.pdf', 'My Documentation')
 ```
 
 For more examples, see:
-- [example_dual_resolution.py](example_dual_resolution.py) - Dual-resolution processing example
+- [scripts/example_dual_resolution.py](scripts/example_dual_resolution.py) - Dual-resolution processing example
 - [DUAL_RESOLUTION_FEATURE.md](DUAL_RESOLUTION_FEATURE.md) - Complete feature documentation
 
 ## Devcontainer (recommended for development)
@@ -192,7 +192,7 @@ python tests/test_suite.py
 
 Process the demo video with a complete workflow example:
 ```bash
-python demo.py
+python scripts/demo.py
 ```
 
 ## Continuous Integration
@@ -260,12 +260,17 @@ The smoke test workflow is defined in `.github/workflows/smoke-test.yml` and run
 
 ```
 VideoDcumentation/
-├── app.py                      # Flask web application
-├── database.py                 # Database operations
-├── video_processor.py          # Video processing logic
-├── video_processing.py         # Video utility functions
-├── video_audio_extraction.py   # Audio extraction and transcription
-├── pdf_generator_improved.py   # PDF generation with improved layout
+├── vid2doc/                    # Packaged application
+│   ├── app.py                  # Flask web application
+│   ├── database.py             # Database operations
+│   ├── video_processor.py      # Video processing logic
+│   ├── video_processing.py     # Video utility functions
+│   ├── video_audio_extraction.py  # Audio extraction and transcription
+│   ├── pdf_generator_improved.py  # PDF generation with improved layout
+│   └── ...
+├── scripts/                    # Helper scripts
+│   ├── demo.py
+│   └── example_dual_resolution.py
 ├── templates/                  # HTML templates
 │   ├── base.html
 │   ├── index.html
@@ -280,11 +285,6 @@ VideoDcumentation/
 │   └── test_suite.py
 ├── requirements.txt            # Python dependencies
 └── README.md                   # This file
-
-Legacy files (kept for reference):
-├── Main.py                     # Original script
-├── pdf_generation.py           # Original PDF generator
-└── Archive/                    # Archived code
 ```
 
 ## Database Schema
@@ -339,7 +339,7 @@ Legacy files (kept for reference):
 
 ## Configuration
 
-Edit configuration in `app.py`:
+Edit configuration in `vid2doc/app.py`:
 - `UPLOAD_FOLDER`: Where uploaded videos are stored (default: 'uploads')
 - `OUTPUT_FOLDER`: Where output files are stored (default: 'output')
 - `MAX_CONTENT_LENGTH`: Maximum upload size (default: 500MB)

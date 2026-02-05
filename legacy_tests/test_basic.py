@@ -23,7 +23,7 @@ def main():
 
     # Test database operations
     print("Testing database operations...")
-    from models_sqlalchemy import Video, Slide, TextExtract, Section, SessionLocal, init_models
+    from vid2doc.models_sqlalchemy import Video, Slide, TextExtract, Section, SessionLocal, init_models
     import datetime
 
     init_models()
@@ -78,7 +78,7 @@ def main():
 
     # Test video processing utilities
     print("\nTesting video processing utilities...")
-    from video_processing import get_video_properties, frame_difference, compare_histograms
+    from vid2doc.video_processing import get_video_properties, frame_difference, compare_histograms
     import cv2
     import numpy as np
 
@@ -100,7 +100,7 @@ def main():
 
     # Test PDF generation setup
     print("\nTesting PDF generation setup...")
-    from pdf_generator_improved import PDFGenerator
+    from vid2doc.pdf_generator_improved import PDFGenerator
 
     test_output_dir = 'test_pdf_output'
     os.makedirs(test_output_dir, exist_ok=True)
@@ -136,9 +136,9 @@ def main():
     print("="*60)
     print("\nThe core functionality is working correctly.")
     print("You can now:")
-    print("  1. Run the Flask app: python app.py")
+    print("  1. Run the Flask app: python -m vid2doc")
     print("  2. Run full test suite: pytest -xvs tests/test_suite.py")
-    print("  3. Process videos manually using video_processor.py")
+    print("  3. Process videos manually using vid2doc.video_processor")
 
 
 if __name__ == '__main__':

@@ -418,7 +418,7 @@ def admin_purge_audio_failures():
         days = int(request.form.get('days', 30))
     except Exception:
         days = 30
-    # No-op purge in tests; real purge logic lives in `database.py`.
+    # No-op purge in tests; real purge logic lives in `vid2doc/database.py`.
     return redirect(url_for('audio_failures'))
 
 

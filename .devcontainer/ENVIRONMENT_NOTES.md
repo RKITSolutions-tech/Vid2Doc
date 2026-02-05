@@ -2,7 +2,7 @@ Devcontainer & Environment Notes
 
 Summary of environment fixes applied to make development easier:
 
-- Added a minimal `video_processor.py` stub so the Flask app can import and start without heavy video-processing dependencies during development.
+- Made video-processing imports optional at module import time so the Flask app can start without heavy dependencies during development.
 - Made heavy imaging and data stack imports optional at module import time (OpenCV, scikit-image, ReportLab, SQLAlchemy). When these packages are missing, functions that require them will raise a clear ImportError explaining how to install the missing dependency.
 - Updated `.devcontainer/post_create.sh` to install project dependencies into the micromamba `dev` environment (excluding torch pins) and to create a lightweight `.venv` in the project root with a minimal set of runtime packages (Flask, reportlab, sqlalchemy, opencv-python-headless, scikit-image, ffmpeg-python, pillow).
 

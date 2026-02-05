@@ -199,8 +199,8 @@ class TestVideoProcessing:
             "min_slide_audio_seconds": 0.0,
         }
 
-        with patch("video_audio_extraction.get_slide_text", side_effect=fake_get_slide_text), \
-             patch("video_audio_extraction.summrise_text", side_effect=fake_summrise_text):
+           with patch("vid2doc.video_audio_extraction.get_slide_text", side_effect=fake_get_slide_text), \
+               patch("vid2doc.video_audio_extraction.summrise_text", side_effect=fake_summrise_text):
             processor = VideoProcessor(trimmed_path, 'test_output')
             video_id = processor.process_video(settings=settings)
 

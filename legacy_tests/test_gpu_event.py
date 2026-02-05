@@ -1,7 +1,7 @@
 import time
 import pytest
 
-from app import _start_processing_job, processing_jobs, jobs_lock
+from vid2doc.app import _start_processing_job, processing_jobs, jobs_lock
 
 
 def test_gpu_event_stored_and_logged():

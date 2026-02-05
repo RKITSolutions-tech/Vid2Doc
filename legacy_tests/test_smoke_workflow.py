@@ -163,7 +163,7 @@ def main():
     # Test 7: Edit slide text
     print("\n7. Editing slide text...")
     try:
-        from database import get_text_extract_by_slide, update_text_extract, add_text_extract
+        from vid2doc.database import get_text_extract_by_slide, update_text_extract, add_text_extract
         
         slides_edited = 0
         
@@ -201,7 +201,7 @@ def main():
     # Test 8: Add document text
     print("\n8. Adding document text...")
     try:
-        from database import update_video_document
+        from vid2doc.database import update_video_document
         
         document_title = "Smoke Test Video Documentation"
         document_summary = """
@@ -232,7 +232,7 @@ Key features tested:
     # Test 9: Generate PDF
     print("\n9. Generating PDF export...")
     try:
-        from pdf_generator_improved import generate_pdf_from_video_id
+        from vid2doc.pdf_generator_improved import generate_pdf_from_video_id
         
         pdf_path = os.path.join(test_output_dir, 'smoke_test_workflow.pdf')
         generate_pdf_from_video_id(video_id, pdf_path, document_title)

@@ -15,8 +15,8 @@ ROOT_DIR = CURRENT_DIR.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-import database
-from database import get_db_connection, get_video_slides, init_db
+import vid2doc.database as database
+from vid2doc.database import get_db_connection, get_video_slides, init_db
 from vid2doc.video_processor import VideoProcessor
 
 
@@ -93,8 +93,8 @@ def test_small_demo_video_audio_capture(tmp_path):
 
     try:
         print("[test] Starting processing (this may take a short while)...")
-        with patch("video_audio_extraction.get_slide_text", side_effect=fake_get_slide_text), \
-             patch("video_audio_extraction.summrise_text", side_effect=fake_summrise_text):
+           with patch("vid2doc.video_audio_extraction.get_slide_text", side_effect=fake_get_slide_text), \
+               patch("vid2doc.video_audio_extraction.summrise_text", side_effect=fake_summrise_text):
             processor = VideoProcessor(str(trimmed_video_path), output_dir=str(output_dir))
             video_id = processor.process_video(settings=settings, progress_callback=progress_callback)
 

@@ -1,7 +1,7 @@
 import json
 import re
-from app import app
-import database
+from vid2doc.app import app
+import vid2doc.database as database
 
 
 def create_test_video(conn=None):

@@ -8,7 +8,7 @@ import pytest
 sys.path.insert(0, os.path.abspath(os.getcwd()))
 
 # We'll import the module under test
-import video_audio_extraction as vae
+import vid2doc.video_audio_extraction as vae
 
 
 def test_wav_path_and_extraction_called(monkeypatch, tmp_path):

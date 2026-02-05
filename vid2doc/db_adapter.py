@@ -1,5 +1,5 @@
 """Database adapter that prefers SQLAlchemy models when available,
-falling back to the legacy database.py functions otherwise.
+falling back to the vid2doc.database functions otherwise.
 
 Usage: import db_adapter as db; use db.get_video_slides(video_id) etc.
 """
@@ -7,11 +7,7 @@ try:
     from vid2doc.models_sqlalchemy import SessionLocal, Slide, TextExtract  # type: ignore
     SQLA_AVAILABLE = True
 except Exception:
-    try:
-        from models_sqlalchemy import SessionLocal, Slide, TextExtract
-        SQLA_AVAILABLE = True
-    except Exception:
-        SQLA_AVAILABLE = False
+    SQLA_AVAILABLE = False
 
 if SQLA_AVAILABLE:
     def get_video_slides(video_id):
@@ -42,7 +38,7 @@ if SQLA_AVAILABLE:
             session.close()
 else:
     # Fallback to legacy functions
-    from vid2doc.database import get_video_slides  # type: ignore
+    from vid2doc.database import get_video_slides as _legacy_get_video_slides  # type: ignore
 
     def get_video_slides(video_id):
-        return get_video_slides(video_id)
+        return _legacy_get_video_slides(video_id)

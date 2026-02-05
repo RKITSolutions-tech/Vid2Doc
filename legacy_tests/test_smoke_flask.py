@@ -94,7 +94,7 @@ All checks passed:
   ✓ Test client works
 
 The Flask application is ready to run!
-To start the server: python app.py
+To start the server: python -m vid2doc
 """)
 
 

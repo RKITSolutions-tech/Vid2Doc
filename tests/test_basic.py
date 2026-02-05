@@ -136,9 +136,9 @@ def main():
     print("="*60)
     print("\nThe core functionality is working correctly.")
     print("You can now:")
-    print("  1. Run the Flask app: python app.py")
+    print("  1. Run the Flask app: python -m vid2doc")
     print("  2. Run full test suite: pytest -xvs tests/test_suite.py")
-    print("  3. Process videos manually using video_processor.py")
+    print("  3. Process videos manually using vid2doc.video_processor")
 
 
 if __name__ == '__main__':

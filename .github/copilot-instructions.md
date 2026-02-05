@@ -2,7 +2,7 @@
 
 ## IMPORTANT: Development Approach
 
-**DO NOT USE `fab_app.py` OR FLASK-APPBUILDER** - This file is deprecated and not part of the core solution. All changes and new features must be implemented in the core Flask application (`app.py`). The core app provides a clean, maintainable web interface without the complexity of Flask-AppBuilder.
+**DO NOT USE `fab_app.py` OR FLASK-APPBUILDER** - This file is deprecated and not part of the core solution. All changes and new features must be implemented in the core Flask application (`vid2doc/app.py`). The core app provides a clean, maintainable web interface without the complexity of Flask-AppBuilder.
 
 ## Project Overview
 
@@ -19,12 +19,12 @@ This is a Flask-based web application that automatically generates documentation
 
 ## Code Organization
 
-- `app.py` - Flask web application with routes and endpoints
-- `database.py` - SQLite database operations (CRUD for videos, slides, sections, text)
-- `video_processor.py` - OOP design for video processing logic
-- `video_processing.py` - Utility functions for video frame extraction
-- `video_audio_extraction.py` - Audio extraction and transcription with Whisper
-- `pdf_generator_improved.py` - PDF generation with professional two-column layout
+- `vid2doc/app.py` - Flask web application with routes and endpoints
+- `vid2doc/database.py` - SQLite database operations (CRUD for videos, slides, sections, text)
+- `vid2doc/video_processor.py` - OOP design for video processing logic
+- `vid2doc/video_processing.py` - Utility functions for video frame extraction
+- `vid2doc/video_audio_extraction.py` - Audio extraction and transcription with Whisper
+- `vid2doc/pdf_generator_improved.py` - PDF generation with professional two-column layout
 - `templates/` - Jinja2 HTML templates for web interface
 - `test_*.py` - Comprehensive test suites
 
@@ -81,23 +81,23 @@ This is a Flask-based web application that automatically generates documentation
 ## Common Tasks
 
 ### Adding New Routes
-Place new Flask routes in `app.py` with proper decorators and error handling.
+Place new Flask routes in `vid2doc/app.py` with proper decorators and error handling.
 
 ### Modifying Slide Detection
-Adjust thresholds in `video_processor.py`:
+Adjust thresholds in `vid2doc/video_processor.py`:
 - `threshold1` - Similarity threshold for slide detection
 - `threshold2` - Histogram threshold
 - `frame_gap` - Minimum frames between slide changes
 - `transition_limit` - Confirmation frames for slide change
 
 ### Database Schema Changes
-1. Update schema in `database.py`
+1. Update schema in `vid2doc/database.py`
 2. Create migration logic or rebuild database
 3. Update affected CRUD operations
 4. Test with existing data
 
 ### PDF Layout Changes
-Modify `pdf_generator_improved.py` which uses a two-column layout:
+Modify `vid2doc/pdf_generator_improved.py` which uses a two-column layout:
 - Left column: 3" width for images
 - Right column: Remaining width for text
 - Section pages create chapter breaks
@@ -123,7 +123,7 @@ Modify `pdf_generator_improved.py` which uses a two-column layout:
 
 ## Best Practices for This Project
 
-1. **Use only the core Flask app** - All development must be done in `app.py`, never in `fab_app.py`
+1. **Use only the core Flask app** - All development must be done in `vid2doc/app.py`, never in `fab_app.py`
 2. **Always test video processing** with short test videos before production use
 3. **Monitor disk space** - extracted frames can accumulate quickly
 4. **Handle database migrations carefully** - no ORM, using raw SQL

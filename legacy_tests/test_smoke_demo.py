@@ -182,7 +182,7 @@ def main():
     # Test 8: Generate PDF
     print("\n8. Generating test PDF...")
     try:
-        from pdf_generator_improved import generate_pdf_from_video_id
+        from vid2doc.pdf_generator_improved import generate_pdf_from_video_id
         
         pdf_path = os.path.join(test_output_dir, 'smoke_test.pdf')
         generate_pdf_from_video_id(video_id, pdf_path, "Video Processing Smoke Test")
@@ -228,7 +228,7 @@ Successfully processed test video end-to-end:
 The video processing pipeline is ready for production!
 
 Note: To test with the actual demo video, run:
-  python demo.py
+    python scripts/demo.py
 """)
 
 

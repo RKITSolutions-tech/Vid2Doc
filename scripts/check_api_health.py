@@ -6,13 +6,13 @@ Usage:
 import sys
 import os
 
-# Ensure repository root is on sys.path so 'app' can be imported when this
+# Ensure repository root is on sys.path so 'vid2doc' can be imported when this
 # script is executed directly.
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from app import app
+from vid2doc.app import app
 
 with app.test_client() as client:
     resp = client.get('/api/health')
