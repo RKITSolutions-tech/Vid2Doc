@@ -65,8 +65,12 @@ if [ "${1:-}" = "full" ]; then
     "$VENV_PY" -m pip install -r requirements.txt
   fi
 else
-  echo "Installing minimal runtime packages (Flask)"
-  "$VENV_PY" -m pip install Flask
+  if "$VENV_PY" -c "import flask" >/dev/null 2>&1; then
+    echo "Flask already installed - skipping"
+  else
+    echo "Installing minimal runtime packages (Flask)"
+    "$VENV_PY" -m pip install Flask
+  fi
 fi
 
 export FLASK_APP=vid2doc:create_app

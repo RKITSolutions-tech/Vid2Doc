@@ -35,7 +35,7 @@ RUN set -eux; \
     pip3 install --upgrade pip; \
     # Attempt to install CUDA-aware PyTorch wheels (if available). If it fails, continue.
     pip3 install --index-url "${CUDA_INDEX_URL}" "torch==${TORCH_VERSION}" torchvision torchaudio --extra-index-url "${CUDA_INDEX_URL}" || true; \
-    pip3 install --no-cache-dir numpy opencv-python-headless scikit-image scikit-learn ffmpeg-python pillow kornia || true; \
+    pip3 install --no-cache-dir numpy opencv-python-headless scikit-image scikit-learn ffmpeg-python pillow kornia openai-whisper || true; \
     if [ -f "/tmp/requirements.txt" ]; then \
         echo 'Installing requirements.txt (excluding torch entries)'; \
         grep -i -v -E '^\s*(torch|torchvision|torchaudio)\b' /tmp/requirements.txt > /tmp/req_filtered.txt || true; \

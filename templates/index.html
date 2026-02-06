@@ -8,16 +8,13 @@
         display: grid;
         grid-template-columns: minmax(300px, 400px) 1fr;
         gap: clamp(15px, 4vw, 20px);
-        align-items: stretch;
-        height: calc(100vh - 160px);
-        max-height: 100%;
+        align-items: start;
     }
 
     /* Mobile: Stack layout vertically */
     @media (max-width: 768px) {
         .dashboard-layout {
             grid-template-columns: 1fr;
-            height: auto;
             gap: 15px;
         }
     }
@@ -34,16 +31,18 @@
         display: flex;
         flex-direction: column;
         gap: 16px;
-        min-height: 0;
     }
 
     .dashboard-layout > div:first-child {
+        max-height: calc(100vh - 160px);
         overflow-y: auto;
-        padding-right: 6px;
+        padding-right: 8px;
     }
 
     .dashboard-layout > div:last-child {
-        overflow: hidden;
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
+        padding-right: 8px;
     }
 
     .panel-card h2,

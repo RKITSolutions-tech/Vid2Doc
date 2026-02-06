@@ -48,6 +48,8 @@ from vid2doc.database import (
     update_video_document,
     add_text_extract,
     get_all_slides_for_export,
+    set_final_text_for_slide,
+    get_db_connection,
 )
 from vid2doc.video_processor import VideoProcessor, PREVIEW_FRAME_INTERVAL
 from vid2doc.video_processing import get_video_properties
@@ -117,52 +119,295 @@ def _start_processing_job(upload_path: str, settings: dict) -> str:
     job_id = str(uuid4())
     job = {
         "id": job_id,
-        "status": "running",
+        "status": "queued",
         "percent_complete": 0.0,
         "logs": [],
+        "extracts": [],
         "gpu_diagnostics": {},
+        "sample_count": 0,
+        "samples_persisted": 0,
+        "empty_samples": 0,
     }
 
     processing_jobs[job_id] = job
+
+    def _append_log(message: str, frame: int | None = None):
+        entry = {"message": message, "frame": frame, "timestamp": time.time()}
+        job["logs"].append(entry)
+        if len(job["logs"]) > MAX_LOG_ENTRIES:
+            job["logs"] = job["logs"][-MAX_LOG_ENTRIES:]
+
+    def _append_extract(frame: int | None, timestamp: float | None, text: str | None):
+        entry = {"frame": frame, "timestamp": timestamp, "text": text}
+        job["extracts"].append(entry)
+        if len(job["extracts"]) > MAX_EXTRACTS:
+            job["extracts"] = job["extracts"][-MAX_EXTRACTS:]
+
+    def _resolve_preview_url(image_path: str | None) -> str | None:
+        if not image_path:
+            return None
+        try:
+            output_root = os.path.abspath(app.config.get("OUTPUT_FOLDER", "output"))
+            abs_path = os.path.abspath(image_path)
+            if abs_path.startswith(output_root):
+                rel = os.path.relpath(abs_path, output_root)
+                return url_for('output_file', filename=rel)
+            if image_path.startswith('output'):
+                rel = os.path.relpath(image_path, 'output')
+                return url_for('output_file', filename=rel)
+        except Exception:
+            pass
+        return None
+
+    def _get_latest_slide_id(video_id: int | None) -> int | None:
+        if not video_id:
+            return None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('SELECT id FROM slides WHERE video_id = ? ORDER BY id DESC LIMIT 1', (video_id,))
+            row = cursor.fetchone()
+            conn.close()
+            return row['id'] if row else None
+        except Exception:
+            logging.exception('Failed to resolve latest slide id')
+            return None
 
     def run_job():
         def progress_callback(event: dict):
             try:
                 etype = event.get("type")
                 if etype == "status":
-                    # store concise log entries
-                    job["logs"].append({"message": event.get("message", ""), "frame": event.get("frames")})
+                    _append_log(event.get("message", ""), event.get("frames"))
                     if event.get("frames") is not None and event.get("total_frames"):
                         try:
                             job["percent_complete"] = min(100.0, float(event.get("frames", 0)) / float(event.get("total_frames", 1)) * 100.0)
                         except Exception:
                             pass
+                elif etype == "started":
+                    job["status"] = "running"
+                    if event.get("total_frames") is not None:
+                        job["total_frames"] = event.get("total_frames")
+                    if event.get("fps") is not None:
+                        job["fps"] = event.get("fps")
+                    if event.get("video_id") is not None:
+                        job["video_id"] = event.get("video_id")
+                    _append_log("Processing started")
+                elif etype == "progress":
+                    if event.get("frames_processed") is not None:
+                        job["frames_processed"] = event.get("frames_processed")
+                    if event.get("percent_complete") is not None:
+                        job["percent_complete"] = event.get("percent_complete")
+                    elif job.get("total_frames") and event.get("frames_processed") is not None:
+                        try:
+                            job["percent_complete"] = min(100.0, float(event.get("frames_processed", 0)) / float(job.get("total_frames", 1)) * 100.0)
+                        except Exception:
+                            pass
+                elif etype == "preview":
+                    job["preview_frame"] = event.get("frame")
+                    job["preview_timestamp"] = event.get("timestamp")
+                    job["preview_image_url"] = _resolve_preview_url(event.get("image_path"))
+                elif etype == "text_sample":
+                    sample = event.get("sample")
+                    frame = event.get("source_frame")
+                    job["sample_count"] = job.get("sample_count", 0) + 1
+                    if not sample:
+                        job["empty_samples"] = job.get("empty_samples", 0) + 1
+                    ts = None
+                    try:
+                        if frame is not None and job.get("fps"):
+                            ts = float(frame) / float(job.get("fps", 1))
+                    except Exception:
+                        ts = None
+                    _append_extract(frame, ts, sample)
+                    # Persist the sample text to the latest slide for this video
+                    try:
+                        slide_id = _get_latest_slide_id(job.get("video_id"))
+                        if slide_id is not None and sample is not None:
+                            set_final_text_for_slide(slide_id, sample, is_locked=False)
+                            job["samples_persisted"] = job.get("samples_persisted", 0) + 1
+                    except Exception:
+                        logging.exception('Failed to persist text sample')
                 elif etype == "complete":
                     job["status"] = "completed"
                     job["percent_complete"] = 100.0
                     if "video_id" in event:
                         job["video_id"] = event["video_id"]
-                elif etype == "started":
-                    job["status"] = "running"
+                        job["edit_url"] = f"/video/{event['video_id']}"
+                    _append_log("Processing completed")
+                elif etype == "cancelled":
+                    job["status"] = "cancelled"
+                    if event.get("percent_complete") is not None:
+                        job["percent_complete"] = event.get("percent_complete")
+                    _append_log("Processing cancelled")
                 # allow other event types to be recorded as logs
                 elif etype:
-                    job["logs"].append({"message": str(event)})
+                    _append_log(str(event))
             except Exception:
-                job["logs"].append({"message": "error processing progress event"})
+                _append_log("error processing progress event")
 
         try:
             # Instantiate and run the processor. Use positional args to match tests' DummyProcessor.
             processor = VideoProcessor(upload_path, app.config.get("OUTPUT_FOLDER", "output"))
             # Some processors accept settings, a progress callback and an optional should_cancel flag.
             # Pass `should_cancel=None` to satisfy implementations that require the third parameter.
-            processor.process_video(settings=settings, progress_callback=progress_callback, should_cancel=None)
+            processor.process_video(settings=settings, progress_callback=progress_callback, should_cancel=lambda: bool(job.get("cancel_requested")))
         except Exception as exc:  # record failure
-            job["status"] = "failed"
-            job["logs"].append({"message": str(exc)})
+            job["status"] = "error"
+            _append_log(str(exc))
 
     t = threading.Thread(target=run_job, daemon=True)
     t.start()
     return job_id
+
+
+def _ensure_placeholder_image() -> str | None:
+    """Ensure a placeholder image exists in the output folder and return its path."""
+    try:
+        os.makedirs(app.config.get('OUTPUT_FOLDER', 'output'), exist_ok=True)
+        placeholder_path = os.path.join(app.config.get('OUTPUT_FOLDER', 'output'), 'placeholder.jpg')
+        if os.path.exists(placeholder_path):
+            return placeholder_path
+        try:
+            from PIL import Image
+            img = Image.new('RGB', (160, 120), color=(230, 230, 230))
+            img.save(placeholder_path, format='JPEG')
+        except Exception:
+            with open(placeholder_path, 'wb') as f:
+                f.write(b'')
+        return placeholder_path
+    except Exception:
+        logging.exception('Failed to ensure placeholder image')
+        return None
+
+
+@app.route('/output/<path:filename>')
+def output_file(filename):
+    """Serve files from the output directory."""
+    return send_from_directory(app.config.get('OUTPUT_FOLDER', 'output'), filename)
+
+
+@app.route('/api/upload', methods=['POST'])
+def api_upload():
+    """Upload a video file and return a file id plus optional metadata."""
+    if 'video' not in request.files:
+        return jsonify({'success': False, 'message': 'No video file provided'}), 400
+    file = request.files['video']
+    if not file or not file.filename:
+        return jsonify({'success': False, 'message': 'No video file provided'}), 400
+    filename = secure_filename(file.filename)
+    if not allowed_file(filename):
+        return jsonify({'success': False, 'message': 'Unsupported file type'}), 400
+
+    file_id = str(uuid4())
+    os.makedirs(app.config.get('UPLOAD_FOLDER', 'uploads'), exist_ok=True)
+    storage_name = f"{file_id}_{filename}"
+    upload_path = os.path.join(app.config.get('UPLOAD_FOLDER', 'uploads'), storage_name)
+
+    try:
+        file.save(upload_path)
+    except Exception as exc:
+        logging.exception('Failed to save uploaded file')
+        return jsonify({'success': False, 'message': f'Failed to save file: {exc}'}), 500
+
+    properties = {}
+    try:
+        properties = get_video_properties(upload_path)
+    except Exception as exc:
+        logging.warning('Unable to read video properties: %s', exc)
+
+    uploaded_files[file_id] = {
+        'path': upload_path,
+        'filename': filename,
+        'properties': properties,
+        'uploaded_at': time.time(),
+    }
+
+    preview_path = _ensure_placeholder_image()
+    preview_url = None
+    if preview_path:
+        try:
+            rel = os.path.relpath(preview_path, app.config.get('OUTPUT_FOLDER', 'output'))
+            preview_url = url_for('output_file', filename=rel)
+        except Exception:
+            preview_url = None
+
+    return jsonify({
+        'success': True,
+        'file_id': file_id,
+        'filename': filename,
+        'properties': properties,
+        'preview_url': preview_url,
+    })
+
+
+@app.route('/api/process', methods=['POST'])
+def api_process():
+    """Start processing for a previously uploaded file."""
+    payload = request.get_json(silent=True) or {}
+    file_id = payload.get('file_id')
+    settings = payload.get('settings') or {}
+    if not file_id or file_id not in uploaded_files:
+        return jsonify({'success': False, 'message': 'Unknown file_id'}), 400
+    upload_info = uploaded_files[file_id]
+    upload_path = upload_info.get('path')
+    if not upload_path or not os.path.exists(upload_path):
+        return jsonify({'success': False, 'message': 'Uploaded file not found'}), 404
+
+    job_id = _start_processing_job(upload_path, settings)
+    job = processing_jobs.get(job_id)
+    if job is not None:
+        job['file_id'] = file_id
+        job['filename'] = upload_info.get('filename')
+        job['method'] = settings.get('extraction_method') or settings.get('method') or 'default'
+
+    return jsonify({
+        'success': True,
+        'job_id': job_id,
+        'filename': upload_info.get('filename'),
+        'method': settings.get('extraction_method') or settings.get('method') or 'default',
+    })
+
+
+@app.route('/api/job/<job_id>/logs')
+def api_job_logs(job_id: str):
+    job = processing_jobs.get(job_id)
+    if not job:
+        return jsonify({'success': False, 'message': 'job not found'}), 404
+    try:
+        n = int(request.args.get('n', 50))
+    except Exception:
+        n = 50
+    include_host = request.args.get('host') in ('1', 'true', 'yes')
+
+    logs = job.get('logs', [])
+    if n > 0:
+        logs = logs[-n:]
+
+    host_lines = []
+    if include_host and app.config.get('LOG_FILE'):
+        try:
+            with open(app.config['LOG_FILE'], 'r', encoding='utf-8', errors='replace') as f:
+                lines = f.read().splitlines()
+            host_lines = lines[-n:] if n > 0 else lines
+        except Exception:
+            logging.exception('Failed to read host log file')
+
+    return jsonify({
+        'success': True,
+        'logs': logs,
+        'host_log_lines': host_lines,
+    })
+
+
+@app.route('/api/job/<job_id>/cancel', methods=['POST'])
+def api_job_cancel(job_id: str):
+    job = processing_jobs.get(job_id)
+    if not job:
+        return jsonify({'success': False, 'message': 'job not found'}), 404
+    job['cancel_requested'] = True
+    job['status'] = 'cancelling'
+    return jsonify({'success': True, 'message': 'Cancellation requested'})
 
 
 @app.route('/api/progress/<job_id>')
